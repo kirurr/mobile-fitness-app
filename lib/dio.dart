@@ -1,5 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'storage.dart';
+import 'auth/service.dart';
+import 'auth/model.dart';
 
 /// Function to get the backend URL from environment variables
 Future<String> getBackendUrl() async {
@@ -11,8 +14,120 @@ Future<String> getBackendUrl() async {
   return backendUrl;
 }
 
+class AuthInterceptor extends Interceptor {
+  final SecureStorageService _storage = SecureStorageService();
+  final AuthService _authService = AuthService();
+  final Dio _dioForRetry = Dio(); // Temporary Dio instance for retries
+  bool _isRefreshing = false;
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    print('interceptor error: ${err.response?.statusCode} ${err.requestOptions.path}');
+    // Check if the error is a 401 Unauthorized
+    if (err.response?.statusCode == 401) {
+      print('401 detected, attempting to refresh token...');
+      // Check if this is a request to the signin endpoint
+      if (err.requestOptions.path.contains('/auth/signin')) {
+        print('401 on signin detected, logging user out...');
+        // If there's a 401 on signin, log the user out
+        await _authService.signout();
+        handler.next(err);
+        return;
+      }
+
+      // Prevent multiple simultaneous refresh attempts
+      if (_isRefreshing) {
+        // Wait until the token refresh is complete
+        while (_isRefreshing) {
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+        // Get the fresh token and update the request headers before retrying
+        String? freshToken = await _storage.getToken();
+        if (freshToken == null || freshToken.isEmpty) {
+          handler.next(err);
+          return;
+        }
+        err.requestOptions.headers['Authorization'] = 'Bearer $freshToken';
+
+        // Retry the request with the new token
+        try {
+          final options = err.requestOptions;
+          var response = await _dioForRetry.fetch(options);
+          handler.resolve(response);
+          return;
+        } catch (e) {
+          handler.next(err);
+          return;
+        }
+      }
+
+      _isRefreshing = true;
+
+      try {
+        print('Attempting to re-authenticate user...');
+        // Get stored credentials
+        String? email = await _storage.getEmail();
+        String? password = await _storage.getPassword();
+
+        print('Stored email: $email');
+        print('Stored password: $password');
+
+        if (email != null && password != null) {
+          print('Re-authenticating user...');
+          // Attempt to re-authenticate
+          var result = await _authService.signin(SignInDTO(email: email, password: password));
+
+          if (result.error != null) {
+            // If re-auth fails, sign out the user
+            await _authService.signout();
+            _isRefreshing = false;
+            handler.next(err);
+            return;
+          }
+
+          // Get the fresh token after successful re-authentication and update headers
+          String? newToken = await _storage.getToken();
+
+          // Update the headers with the new token
+          if (newToken == null || newToken.isEmpty) {
+            await _authService.signout();
+            _isRefreshing = false;
+            handler.next(err);
+            return;
+          }
+          err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+
+          print(newToken);
+          var newOptions = err.requestOptions;
+          newOptions.headers['Authorization'] = 'Bearer $newToken';
+          // Retry the original request using the updated token
+          var response = await _dioForRetry.fetch(newOptions);
+
+          _isRefreshing = false;
+          handler.resolve(response);
+        } else {
+          // No stored credentials, sign out the user
+          await _authService.signout();
+          _isRefreshing = false;
+          handler.next(err);
+        }
+      } catch (e) {
+        print('Error during token refresh: $e');
+        // If anything goes wrong during re-auth, sign out the user
+        await _authService.signout();
+        _isRefreshing = false;
+        handler.next(err);
+      }
+    } else {
+      // For non-401 errors, continue as normal
+      handler.next(err);
+    }
+  }
+}
+
 class ApiClient {
   late Dio _dio;
+  final SecureStorageService _storage = SecureStorageService();
 
   ApiClient._internal();
 
@@ -35,7 +150,8 @@ class ApiClient {
 
     _dio = Dio(options);
 
-    // Add interceptors if needed
+    // Add interceptors - put AuthInterceptor before LogInterceptor for proper order
+    _dio.interceptors.add(AuthInterceptor());
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
@@ -46,6 +162,23 @@ class ApiClient {
 
   /// Getter for the Dio instance
   Dio get dio => _dio;
+
+  /// Helper method to get the auth token
+  Future<String?> _getAuthToken() async {
+    return await _storage.getToken();
+  }
+
+  /// Add auth token to headers
+  Future<Map<String, dynamic>> _getAuthHeaders() async {
+    String? token = await _getAuthToken();
+    Map<String, dynamic> headers = {
+      'Content-Type': 'application/json',
+    };
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
 
   /// GET request
   Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) async {
@@ -66,14 +199,56 @@ class ApiClient {
   Future<Response> delete(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
     return await _dio.delete(path, data: data, queryParameters: queryParameters);
   }
+
+  /// Authenticated GET request
+  Future<Response> getAuth(String path, {Map<String, dynamic>? queryParameters}) async {
+    Options options = Options(headers: await _getAuthHeaders());
+    return await _dio.get(path, queryParameters: queryParameters, options: options);
+  }
+
+  /// Authenticated POST request
+  Future<Response> postAuth(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+    Options options = Options(headers: await _getAuthHeaders());
+    return await _dio.post(path, data: data, queryParameters: queryParameters, options: options);
+  }
+
+  /// Authenticated PUT request
+  Future<Response> putAuth(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+    Options options = Options(headers: await _getAuthHeaders());
+    return await _dio.put(path, data: data, queryParameters: queryParameters, options: options);
+  }
+
+  /// Authenticated DELETE request
+  Future<Response> deleteAuth(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+    Options options = Options(headers: await _getAuthHeaders());
+    return await _dio.delete(path, data: data, queryParameters: queryParameters, options: options);
+  }
 }
 
-// Example usage function (for demonstration purposes)
-Future<void> exampleUsage() async {
-  // Initialize the API client
-  await ApiClient.instance.init();
+class ApiError {
+  final String message;
+  final int? code;
 
-  // Example API calls
-  // var response = await ApiClient.instance.get('/users');
-  // print(response.data);
+  ApiError({required this.message, this.code});
+}
+
+class ApiResult<T> {
+  final T? data;
+  final ApiError? error;
+
+  ApiResult({this.data, this.error});
+}
+
+Future<ApiResult<T>> safeApiCall<T>(
+  Future<T> Function() apiCall,
+) async {
+  try {
+    final result = await apiCall();
+    return ApiResult<T>(data: result);
+  } on DioException catch (dioException) {
+    print(dioException);
+    return ApiResult<T>(error: ApiError(message: dioException.message ?? 'Unexpected error', code: dioException.response?.statusCode));
+  } catch (e) {
+    return ApiResult<T>(error: ApiError(message: e.toString()));
+  }
 }
