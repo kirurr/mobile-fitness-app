@@ -37,6 +37,9 @@ dependencies:
   dio: ^5.9.0
   flutter_dotenv: ^6.0.0
   flutter_secure_storage: ^10.0.0
+  path_provider: ^2.1.5
+  isar_community: 3.3.0
+  isar_community_flutter_libs: 3.3.0
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +51,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  isar_community_generator: 3.3.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

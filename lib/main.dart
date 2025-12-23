@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'dio.dart'; // Import the ApiClient
-import 'testing_screen.dart'; // Import the testing screen
+import 'package:mobile_fitness_app/app/dependencies.dart';
+import 'package:mobile_fitness_app/app/dependency_scope.dart';
+import 'auth/service.dart';
+import 'screens/main_screen.dart';
+import 'screens/sign_in_screen.dart';
 
 Future main() async {
-  await dotenv.load(fileName: ".env");
-
-  // Initialize the API client after loading environment variables
-  await ApiClient.instance.init();
-
-  runApp(MyApp(title: 'API Testing App'));
+  final deps = await Dependencies.init();
+  runApp(
+    DependencyScope(
+      deps: deps,
+      child: const MyApp(title: 'Mobile Fitness App'),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
   final String title;
   const MyApp({super.key, required this.title});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -24,7 +26,28 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const TestingScreen(), // Replace with the testing screen
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: AuthService().isLoggedIn(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final isLoggedIn = snapshot.data ?? false;
+        return isLoggedIn ? const MainScreen() : const SignInScreen();
+      },
     );
   }
 }

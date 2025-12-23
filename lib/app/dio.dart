@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'storage.dart';
-import 'auth/service.dart';
-import 'auth/model.dart';
+import '../auth/service.dart';
+import '../auth/model.dart';
 
 /// Function to get the backend URL from environment variables
 Future<String> getBackendUrl() async {
@@ -22,7 +22,9 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    print('interceptor error: ${err.response?.statusCode} ${err.requestOptions.path}');
+    print(
+      'interceptor error: ${err.response?.statusCode} ${err.requestOptions.path}',
+    );
     // Check if the error is a 401 Unauthorized
     if (err.response?.statusCode == 401) {
       print('401 detected, attempting to refresh token...');
@@ -75,7 +77,9 @@ class AuthInterceptor extends Interceptor {
         if (email != null && password != null) {
           print('Re-authenticating user...');
           // Attempt to re-authenticate
-          var result = await _authService.signin(SignInDTO(email: email, password: password));
+          var result = await _authService.signin(
+            SignInDTO(email: email, password: password),
+          );
 
           if (result.error != null) {
             // If re-auth fails, sign out the user
@@ -143,21 +147,21 @@ class ApiClient {
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 30),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: {'Content-Type': 'application/json'},
     );
 
     _dio = Dio(options);
 
     // Add interceptors - put AuthInterceptor before LogInterceptor for proper order
     _dio.interceptors.add(AuthInterceptor());
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      requestHeader: true,
-      responseHeader: false,
-    ));
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        requestHeader: true,
+        responseHeader: false,
+      ),
+    );
   }
 
   /// Getter for the Dio instance
@@ -171,9 +175,7 @@ class ApiClient {
   /// Add auth token to headers
   Future<Map<String, dynamic>> _getAuthHeaders() async {
     String? token = await _getAuthToken();
-    Map<String, dynamic> headers = {
-      'Content-Type': 'application/json',
-    };
+    Map<String, dynamic> headers = {'Content-Type': 'application/json'};
     if (token != null) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -181,47 +183,100 @@ class ApiClient {
   }
 
   /// GET request
-  Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) async {
+  Future<Response> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
     return await _dio.get(path, queryParameters: queryParameters);
   }
 
   /// POST request
-  Future<Response> post(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+  Future<Response> post(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
     return await _dio.post(path, data: data, queryParameters: queryParameters);
   }
 
   /// PUT request
-  Future<Response> put(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+  Future<Response> put(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
     return await _dio.put(path, data: data, queryParameters: queryParameters);
   }
 
   /// DELETE request
-  Future<Response> delete(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
-    return await _dio.delete(path, data: data, queryParameters: queryParameters);
+  Future<Response> delete(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return await _dio.delete(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+    );
   }
 
   /// Authenticated GET request
-  Future<Response> getAuth(String path, {Map<String, dynamic>? queryParameters}) async {
+  Future<Response> getAuth(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
     Options options = Options(headers: await _getAuthHeaders());
-    return await _dio.get(path, queryParameters: queryParameters, options: options);
+    return await _dio.get(
+      path,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   /// Authenticated POST request
-  Future<Response> postAuth(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+  Future<Response> postAuth(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
     Options options = Options(headers: await _getAuthHeaders());
-    return await _dio.post(path, data: data, queryParameters: queryParameters, options: options);
+    return await _dio.post(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   /// Authenticated PUT request
-  Future<Response> putAuth(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+  Future<Response> putAuth(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
     Options options = Options(headers: await _getAuthHeaders());
-    return await _dio.put(path, data: data, queryParameters: queryParameters, options: options);
+    return await _dio.put(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   /// Authenticated DELETE request
-  Future<Response> deleteAuth(String path, {dynamic data, Map<String, dynamic>? queryParameters}) async {
+  Future<Response> deleteAuth(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
     Options options = Options(headers: await _getAuthHeaders());
-    return await _dio.delete(path, data: data, queryParameters: queryParameters, options: options);
+    return await _dio.delete(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 }
 
@@ -239,15 +294,18 @@ class ApiResult<T> {
   ApiResult({this.data, this.error});
 }
 
-Future<ApiResult<T>> safeApiCall<T>(
-  Future<T> Function() apiCall,
-) async {
+Future<ApiResult<T>> safeApiCall<T>(Future<T> Function() apiCall) async {
   try {
     final result = await apiCall();
     return ApiResult<T>(data: result);
   } on DioException catch (dioException) {
     print(dioException);
-    return ApiResult<T>(error: ApiError(message: dioException.message ?? 'Unexpected error', code: dioException.response?.statusCode));
+    return ApiResult<T>(
+      error: ApiError(
+        message: dioException.message ?? 'Unexpected error',
+        code: dioException.response?.statusCode,
+      ),
+    );
   } catch (e) {
     return ApiResult<T>(error: ApiError(message: e.toString()));
   }

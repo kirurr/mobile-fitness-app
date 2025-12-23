@@ -1,7 +1,6 @@
 import 'package:mobile_fitness_app/auth/model.dart';
-import 'package:mobile_fitness_app/dio.dart';
-import 'package:mobile_fitness_app/storage.dart';
-import 'dart:convert';
+import 'package:mobile_fitness_app/app/dio.dart';
+import 'package:mobile_fitness_app/app/storage.dart';
 
 class AuthService {
   final ApiClient _apiClient = ApiClient.instance;
