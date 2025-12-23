@@ -50,7 +50,8 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final deps = DependencyScope.of(context);
 
-    final repo = deps.fitnessGoalRepository;
+    final fitnessRepo = deps.fitnessGoalRepository;
+    final difficlutyRepo = deps.difficultyLevelRepository;
 
     return Scaffold(
       appBar: AppBar(
@@ -65,29 +66,63 @@ class _MainScreenState extends State<MainScreen> {
       ),
       body: Column(
         children: [
-          ElevatedButton(onPressed: () async {
-            await repo.refreshGoals();
-          }, child: const Text('Test API')),
+          ElevatedButton(
+            onPressed: () async {
+              await fitnessRepo.refreshGoals();
+              await difficlutyRepo.refreshLevels();
+            },
+            child: const Text('Test API'),
+          ),
           Expanded(
             child: StreamBuilder(
-              stream: repo.watchGoals(),
+              stream: difficlutyRepo.watchLevels(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-            
+
                 // 2. Ошибка стрима
                 if (snapshot.hasError) {
                   return Center(child: Text('Ошибка: ${snapshot.error}'));
                 }
-            
+
                 // 3. Данные
                 final items = snapshot.data ?? [];
-            
+
                 if (items.isEmpty) {
                   return const Center(child: Text('Пока пусто'));
                 }
-            
+
+                return ListView.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return ListTile(title: Text(item.name));
+                  },
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder(
+              stream: fitnessRepo.watchGoals(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // 2. Ошибка стрима
+                if (snapshot.hasError) {
+                  return Center(child: Text('Ошибка: ${snapshot.error}'));
+                }
+
+                // 3. Данные
+                final items = snapshot.data ?? [];
+
+                if (items.isEmpty) {
+                  return const Center(child: Text('Пока пусто'));
+                }
+
                 return ListView.builder(
                   itemCount: items.length,
                   itemBuilder: (context, index) {
