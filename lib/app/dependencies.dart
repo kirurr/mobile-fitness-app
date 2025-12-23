@@ -2,6 +2,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/app/dio.dart';
 import 'package:mobile_fitness_app/app/isar.dart';
+import 'package:mobile_fitness_app/user_data/assembler.dart';
+import 'package:mobile_fitness_app/user_data/repository.dart';
 import 'package:mobile_fitness_app/difficulty_level/assembler.dart';
 import 'package:mobile_fitness_app/difficulty_level/repository.dart';
 import 'package:mobile_fitness_app/fitness_goal/assembler.dart';
@@ -11,11 +13,13 @@ class Dependencies {
   final Isar db;
   final FitnessGoalRepository fitnessGoalRepository;
   final DifficultyLevelRepository difficultyLevelRepository;
+  final UserDataRepository userDataRepository;
 
   Dependencies._({
     required this.db,
     required this.fitnessGoalRepository,
     required this.difficultyLevelRepository,
+    required this.userDataRepository,
   });
 
   static Future<Dependencies> init() async {
@@ -32,11 +36,16 @@ class Dependencies {
       isar: isarService,
       api: ApiClient.instance,
     );
+    final userDataRepository = UserDataAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
 
     return Dependencies._(
       db: isarService,
       fitnessGoalRepository: fitnessGoalRepository,
       difficultyLevelRepository: difficultyLevelRepository,
+      userDataRepository: userDataRepository,
     );
   }
 }

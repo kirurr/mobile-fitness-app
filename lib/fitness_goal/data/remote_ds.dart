@@ -1,5 +1,7 @@
 import 'package:mobile_fitness_app/app/dio.dart';
 import 'package:mobile_fitness_app/fitness_goal/model.dart';
+import 'package:mobile_fitness_app/fitness_goal/dto.dart';
+import 'package:mobile_fitness_app/fitness_goal/mapper.dart';
 
 class FitnessGoalRemoteDataSource {
   final ApiClient _api;
@@ -13,7 +15,9 @@ class FitnessGoalRemoteDataSource {
     }
 
     return (response.data?.data as List)
-        .map((json) => FitnessGoal.fromJson(json))
+        .map((json) => FitnessGoalMapper.fromDto(
+              FitnessGoalDTO.fromJson(json as Map<String, dynamic>),
+            ))
         .toList();
   }
 
@@ -23,6 +27,8 @@ class FitnessGoalRemoteDataSource {
       throw response.error!;
     }
 
-    return FitnessGoal.fromJson(response.data!.data);
+    return FitnessGoalMapper.fromDto(
+      FitnessGoalDTO.fromJson(response.data!.data as Map<String, dynamic>),
+    );
   }
 }

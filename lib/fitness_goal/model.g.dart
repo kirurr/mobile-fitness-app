@@ -90,7 +90,9 @@ void _fitnessGoalAttach(
   IsarCollection<dynamic> col,
   Id id,
   FitnessGoal object,
-) {}
+) {
+  object.id = id;
+}
 
 extension FitnessGoalQueryWhereSort
     on QueryBuilder<FitnessGoal, FitnessGoal, QWhere> {

@@ -1,5 +1,7 @@
 import 'package:mobile_fitness_app/app/dio.dart';
 import 'package:mobile_fitness_app/difficulty_level/model.dart';
+import 'package:mobile_fitness_app/difficulty_level/dto.dart';
+import 'package:mobile_fitness_app/difficulty_level/mapper.dart';
 
 class DifficultyLevelRemoteDataSource {
   final ApiClient _api;
@@ -13,7 +15,9 @@ class DifficultyLevelRemoteDataSource {
     }
 
     return (response.data?.data as List)
-        .map((json) => DifficultyLevel.fromJson(json))
+        .map((json) => DifficultyLevelMapper.fromDto(
+              DifficultyLevelDTO.fromJson(json as Map<String, dynamic>),
+            ))
         .toList();
   }
 
@@ -25,6 +29,8 @@ class DifficultyLevelRemoteDataSource {
       throw response.error!;
     }
 
-    return DifficultyLevel.fromJson(response.data!.data);
+    return DifficultyLevelMapper.fromDto(
+      DifficultyLevelDTO.fromJson(response.data!.data as Map<String, dynamic>),
+    );
   }
 }

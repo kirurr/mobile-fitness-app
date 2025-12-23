@@ -1,6 +1,7 @@
 import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/difficulty_level/model.dart';
 import 'package:mobile_fitness_app/fitness_goal/model.dart';
+import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:path_provider/path_provider.dart';
 
 class IsarService {
@@ -14,7 +15,7 @@ class IsarService {
     if (Isar.instanceNames.isEmpty) {
       final dir = await getApplicationDocumentsDirectory();
       return await Isar.open(
-        [FitnessGoalSchema, DifficultyLevelSchema],
+        [FitnessGoalSchema, DifficultyLevelSchema, UserDataSchema],
         inspector: true,
         directory: dir.path,
       );

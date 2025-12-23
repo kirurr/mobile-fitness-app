@@ -103,7 +103,9 @@ void _difficultyLevelAttach(
   IsarCollection<dynamic> col,
   Id id,
   DifficultyLevel object,
-) {}
+) {
+  object.id = id;
+}
 
 extension DifficultyLevelQueryWhereSort
     on QueryBuilder<DifficultyLevel, DifficultyLevel, QWhere> {
