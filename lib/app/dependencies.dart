@@ -2,6 +2,20 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/app/dio.dart';
 import 'package:mobile_fitness_app/app/isar.dart';
+import 'package:mobile_fitness_app/exercise/assembler.dart';
+import 'package:mobile_fitness_app/exercise/repository.dart';
+import 'package:mobile_fitness_app/exercise_category/assembler.dart';
+import 'package:mobile_fitness_app/exercise_category/repository.dart';
+import 'package:mobile_fitness_app/muscle_group/assembler.dart';
+import 'package:mobile_fitness_app/muscle_group/repository.dart';
+import 'package:mobile_fitness_app/exercise_program/assembler.dart';
+import 'package:mobile_fitness_app/exercise_program/repository.dart';
+import 'package:mobile_fitness_app/subscription/assembler.dart';
+import 'package:mobile_fitness_app/subscription/repository.dart';
+import 'package:mobile_fitness_app/user_payment/assembler.dart';
+import 'package:mobile_fitness_app/user_payment/repository.dart';
+import 'package:mobile_fitness_app/user_subscription/assembler.dart';
+import 'package:mobile_fitness_app/user_subscription/repository.dart';
 import 'package:mobile_fitness_app/user_data/assembler.dart';
 import 'package:mobile_fitness_app/user_data/repository.dart';
 import 'package:mobile_fitness_app/difficulty_level/assembler.dart';
@@ -13,12 +27,26 @@ class Dependencies {
   final Isar db;
   final FitnessGoalRepository fitnessGoalRepository;
   final DifficultyLevelRepository difficultyLevelRepository;
+  final ExerciseCategoryRepository exerciseCategoryRepository;
+  final MuscleGroupRepository muscleGroupRepository;
+  final ExerciseRepository exerciseRepository;
+  final ExerciseProgramRepository exerciseProgramRepository;
+  final SubscriptionRepository subscriptionRepository;
+  final UserSubscriptionRepository userSubscriptionRepository;
+  final UserPaymentRepository userPaymentRepository;
   final UserDataRepository userDataRepository;
 
   Dependencies._({
     required this.db,
     required this.fitnessGoalRepository,
     required this.difficultyLevelRepository,
+    required this.exerciseCategoryRepository,
+    required this.muscleGroupRepository,
+    required this.exerciseRepository,
+    required this.exerciseProgramRepository,
+    required this.subscriptionRepository,
+    required this.userSubscriptionRepository,
+    required this.userPaymentRepository,
     required this.userDataRepository,
   });
 
@@ -36,6 +64,34 @@ class Dependencies {
       isar: isarService,
       api: ApiClient.instance,
     );
+    final exerciseCategoryRepository = ExerciseCategoryAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final muscleGroupRepository = MuscleGroupAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final exerciseRepository = ExerciseAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final exerciseProgramRepository = ExerciseProgramAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final subscriptionRepository = SubscriptionAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final userSubscriptionRepository = UserSubscriptionAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final userPaymentRepository = UserPaymentAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
     final userDataRepository = UserDataAssembler.build(
       isar: isarService,
       api: ApiClient.instance,
@@ -45,6 +101,13 @@ class Dependencies {
       db: isarService,
       fitnessGoalRepository: fitnessGoalRepository,
       difficultyLevelRepository: difficultyLevelRepository,
+      exerciseCategoryRepository: exerciseCategoryRepository,
+      muscleGroupRepository: muscleGroupRepository,
+      exerciseRepository: exerciseRepository,
+      exerciseProgramRepository: exerciseProgramRepository,
+      subscriptionRepository: subscriptionRepository,
+      userSubscriptionRepository: userSubscriptionRepository,
+      userPaymentRepository: userPaymentRepository,
       userDataRepository: userDataRepository,
     );
   }
