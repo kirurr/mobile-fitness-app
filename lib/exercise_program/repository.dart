@@ -52,7 +52,17 @@ class ExerciseProgramRepository {
       'ExerciseProgramRepository.updateProgram: '
       'id=$id payloadExercises=${payload.exercises.length}',
     );
-    final updated = await remote.update(id, payload);
+    ExerciseProgram updated = await remote.update(id, payload);
+    if (updated.programExercises.isEmpty && payload.exercises.isNotEmpty) {
+      try {
+        final fetched = await remote.getById(id);
+        if (fetched != null && fetched.programExercises.isNotEmpty) {
+          updated = fetched;
+        }
+      } catch (e) {
+        print('ExerciseProgramRepository.updateProgram: getById failed: $e');
+      }
+    }
     final programExercises = updated.programExercises.toList();
     await local.updateFromProgram(updated, programExercises);
     return updated;

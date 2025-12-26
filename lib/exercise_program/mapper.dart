@@ -25,19 +25,26 @@ class ExerciseProgramMapper {
       // сначала сохраняем модель — иначе она не attached
       await isar.exercisePrograms.put(model);
 
-      final programExercises = dto.exercises.map((e) {
-        return ProgramExercise(
-          id: e.id!,
-          exerciseId: e.exerciseId,
-          order: e.order,
-          sets: e.sets,
-          reps: e.reps,
-          duration: e.duration,
-          restDuration: e.restDuration,
-        );
-      }).toList();
+      final hasExercises = dto.exercises.isNotEmpty;
+      final programExercises = hasExercises
+          ? dto.exercises
+              .map(
+                (e) => ProgramExercise(
+                  id: e.id!,
+                  exerciseId: e.exerciseId,
+                  order: e.order,
+                  sets: e.sets,
+                  reps: e.reps,
+                  duration: e.duration,
+                  restDuration: e.restDuration,
+                ),
+              )
+              .toList()
+          : <ProgramExercise>[];
 
-      await isar.programExercises.putAll(programExercises);
+      if (hasExercises) {
+        await isar.programExercises.putAll(programExercises);
+      }
 
       // -------- LINKS --------
 
@@ -62,33 +69,37 @@ class ExerciseProgramMapper {
       model.fitnessGoals.addAll(goals);
 
       // exercises
-      final exerciseIds = dto.exercises.map((e) => e.exerciseId).toList();
+      if (hasExercises) {
+        final exerciseIds = dto.exercises.map((e) => e.exerciseId).toList();
 
-      final exercises = await isar.exercises
-          .where()
-          .anyOf(exerciseIds, (q, id) => q.idEqualTo(id))
-          .findAll();
+        final exercises = await isar.exercises
+            .where()
+            .anyOf(exerciseIds, (q, id) => q.idEqualTo(id))
+            .findAll();
 
-      for (final pe in programExercises) {
-        final exerciseMatch = exercises.firstWhere(
-          (ex) => ex.id == pe.exerciseId,
-        );
-        pe.exercise.value = exerciseMatch;
-        pe.program.value = model;
+        for (final pe in programExercises) {
+          final exerciseMatch = exercises.firstWhere(
+            (ex) => ex.id == pe.exerciseId,
+          );
+          pe.exercise.value = exerciseMatch;
+          pe.program.value = model;
+        }
+
+        model.programExercises.addAll(programExercises);
       }
-
-      model.programExercises.addAll(programExercises);
 
       // -------- SAVE LINKS --------
 
       await model.difficultyLevel.save();
       await model.subscription.save();
       await model.fitnessGoals.save();
-      await model.programExercises.save();
+      if (hasExercises) {
+        await model.programExercises.save();
 
-      for (final pe in programExercises) {
-        await pe.exercise.save();
-        await pe.program.save();
+        for (final pe in programExercises) {
+          await pe.exercise.save();
+          await pe.program.save();
+        }
       }
     });
 
