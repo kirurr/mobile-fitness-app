@@ -1,4 +1,6 @@
 import 'package:isar_community/isar.dart';
+import 'package:mobile_fitness_app/exercise/model.dart';
+import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
 
@@ -110,12 +112,31 @@ class UserCompletedProgramLocalDataSource {
           .completedProgramIdEqualTo(programId)
           .findAll();
 
+      for (final exercise in savedExercises) {
+        if (exercise.exercise.value == null && exercise.exerciseId != null) {
+          exercise.exercise.value = await db.exercises.get(exercise.exerciseId!);
+        }
+        if (exercise.programExercise.value == null &&
+            exercise.programExerciseId != null) {
+          exercise.programExercise.value =
+              await db.programExercises.get(exercise.programExerciseId!);
+        }
+      }
+
       managedProgram.program.value = item.program.value;
       managedProgram.completedExercises
         ..clear()
         ..addAll(savedExercises);
 
       await db.writeTxn(() async {
+        for (final exercise in savedExercises) {
+          if (exercise.exercise.value != null) {
+            await exercise.exercise.save();
+          }
+          if (exercise.programExercise.value != null) {
+            await exercise.programExercise.save();
+          }
+        }
         await managedProgram.program.save();
         await managedProgram.completedExercises.save();
       });

@@ -1,9 +1,6 @@
 import 'package:isar_community/isar.dart';
-import 'package:mobile_fitness_app/difficulty_level/model.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/exercise/model.dart';
-import 'package:mobile_fitness_app/fitness_goal/model.dart';
-import 'package:mobile_fitness_app/subscription/model.dart';
 
 class ExerciseProgramLocalDataSource {
   late Isar db;

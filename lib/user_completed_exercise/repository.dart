@@ -1,4 +1,3 @@
-import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/data/local_ds.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/data/remote_ds.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/dto.dart';
