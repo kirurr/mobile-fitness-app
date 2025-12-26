@@ -22,6 +22,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
   UserCompletedProgram? _completedProgram;
   UserData? _userData;
   List<Exercise> _exercises = [];
+  List<ExerciseProgram> _availablePrograms = [];
+  ExerciseProgram? _selectedProgram;
   List<UserCompletedExercise> _currentCompletedExercises = [];
   final Map<int, _ExerciseEditors> _editControllers = {};
   List<UserCompletedExercise> _completedCache = [];
@@ -29,6 +31,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
   bool _loading = true;
   bool _savingExercise = false;
   bool _endingProgram = false;
+  bool _startingProgram = false;
+  bool _startingCustomProgram = false;
   String? _error;
 
   int? _selectedExerciseId;
@@ -101,43 +105,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
       }
       print('TrainingScreen._bootstrap: difficultyId=$difficultyId');
 
-      final programPayload = ExerciseProgramPayloadDTO(
-        name: 'untitled program',
-        description: 'Generated training',
-        difficultyLevelId: difficultyId,
-        subscriptionId: null,
-        userId: userData.userId,
-        fitnessGoalIds: fitnessGoalId != null ? [fitnessGoalId] : [],
-        exercises: const [],
-      );
-
-      final createdProgram = await deps.exerciseProgramRepository.createProgram(
-        programPayload,
-      );
+      final programs = await deps.exerciseProgramRepository.getLocalPrograms();
       print(
-        'TrainingScreen._bootstrap: program created id=${createdProgram.id}',
-      );
-
-      final nowIso = DateTime.now().toUtc().toIso8601String();
-      final completedProgramPayload = UserCompletedProgramPayloadDTO(
-        userId: userData.userId,
-        programId: createdProgram.id,
-        startDate: nowIso,
-        endDate: null,
-      );
-
-      final createdCompletedProgram = await deps.userCompletedProgramRepository
-          .create(completedProgramPayload);
-      print(
-        'TrainingScreen._bootstrap: completed program created id=${createdCompletedProgram.id}',
+        'TrainingScreen._bootstrap: programs loaded (${programs.length})',
       );
 
       if (!mounted) return;
       setState(() {
-        _program = createdProgram;
-        _completedProgram = createdCompletedProgram;
         _userData = userData;
         _exercises = exercises;
+        _availablePrograms = programs;
+        _selectedProgram = programs.isNotEmpty ? programs.first : null;
         _loading = false;
       });
     } catch (e, stackTrace) {
@@ -316,7 +294,18 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     try {
       print('TrainingScreen._finishProgram: start');
-      await _syncProgramExercisesFromCompleted(deps);
+      final completedExercises = await deps.userCompletedExerciseRepository
+          .getLocalCompletedExercises(completedProgram.id);
+      final program = _program;
+      if (program != null && program.programExercises.isNotEmpty) {
+        await _linkCompletedExercisesToProgramExercises(
+          deps,
+          program,
+          completedExercises,
+        );
+      } else {
+        await _syncProgramExercisesFromCompleted(deps);
+      }
       print('TrainingScreen._finishProgram: sync complete');
 
       final payload = UserCompletedProgramPayloadDTO(
@@ -457,7 +446,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           : _error != null
           ? Center(child: Text(_error!))
           : completedProgram == null
-          ? const Center(child: Text('No active training'))
+          ? _programSelection()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -616,8 +605,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   Widget _programInfo() {
-    final userGoal = _userData?.fitnessGoal.value?.name ?? '-';
-    final difficulty = _userData?.trainingLevel.value?.name ?? '-';
+    final programGoals = _program?.fitnessGoals
+            .map((goal) => goal.name)
+            .toList(growable: false) ??
+        const <String>[];
+    final goalText = programGoals.isNotEmpty
+        ? programGoals.join(', ')
+        : (_userData?.fitnessGoal.value?.name ?? '-');
+    final difficulty =
+        _program?.difficultyLevel.value?.name ??
+        _userData?.trainingLevel.value?.name ??
+        '-';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -631,12 +629,144 @@ class _TrainingScreenState extends State<TrainingScreen> {
             const SizedBox(height: 8),
             Text('Program: ${_program?.name ?? 'untitled program'}'),
             Text('Started: ${_formatDateTime(_completedProgram?.startDate)}'),
-            Text('Goal: $userGoal'),
+            Text('Goal: $goalText'),
             Text('Difficulty: $difficulty'),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _startSelectedProgram() async {
+    final userData = _userData;
+    final program = _selectedProgram;
+    if (userData == null || program == null) return;
+
+    setState(() {
+      _startingProgram = true;
+    });
+
+    try {
+      final deps = DependencyScope.of(context);
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final completedProgramPayload = UserCompletedProgramPayloadDTO(
+        userId: userData.userId,
+        programId: program.id,
+        startDate: nowIso,
+        endDate: null,
+      );
+
+      final createdCompletedProgram = await deps.userCompletedProgramRepository
+          .create(completedProgramPayload);
+
+      final completedExerciseRepo = deps.userCompletedExerciseRepository;
+      for (final programExercise in program.programExercises) {
+        final payload = UserCompletedExercisePayloadDTO(
+          completedProgramId: createdCompletedProgram.id,
+          programExerciseId: programExercise.id,
+          exerciseId: programExercise.exerciseId,
+          sets: programExercise.sets,
+          reps: programExercise.reps,
+          duration: programExercise.duration,
+          weight: null,
+          restDuration: programExercise.restDuration,
+        );
+        await completedExerciseRepo.create(payload);
+      }
+
+      await deps.userCompletedProgramRepository.refreshLocalLinksForProgram(
+        createdCompletedProgram.id,
+      );
+      final completedExercises = await completedExerciseRepo
+          .getLocalCompletedExercises(createdCompletedProgram.id);
+
+      if (!mounted) return;
+      setState(() {
+        _program = program;
+        _completedProgram = createdCompletedProgram;
+        _currentCompletedExercises = completedExercises;
+        _completedCache = completedExercises;
+        _selectedExerciseId = null;
+        _editControllers.clear();
+      });
+    } catch (e, stackTrace) {
+      print('TrainingScreen._startSelectedProgram failed: $e\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to start workout: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _startingProgram = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _startCustomProgram() async {
+    final userData = _userData;
+    if (userData == null) return;
+
+    final difficultyId = userData.trainingLevel.value?.id;
+    if (difficultyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Training level not set for user.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _startingCustomProgram = true;
+    });
+
+    try {
+      final deps = DependencyScope.of(context);
+      final fitnessGoalId = userData.fitnessGoal.value?.id;
+      final programPayload = ExerciseProgramPayloadDTO(
+        name: 'untitled program',
+        description: 'Generated training',
+        difficultyLevelId: difficultyId,
+        subscriptionId: null,
+        userId: userData.userId,
+        fitnessGoalIds: fitnessGoalId != null ? [fitnessGoalId] : [],
+        exercises: const [],
+      );
+
+      final createdProgram =
+          await deps.exerciseProgramRepository.createProgram(programPayload);
+
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final completedProgramPayload = UserCompletedProgramPayloadDTO(
+        userId: userData.userId,
+        programId: createdProgram.id,
+        startDate: nowIso,
+        endDate: null,
+      );
+
+      final createdCompletedProgram = await deps.userCompletedProgramRepository
+          .create(completedProgramPayload);
+
+      if (!mounted) return;
+      setState(() {
+        _program = createdProgram;
+        _completedProgram = createdCompletedProgram;
+        _currentCompletedExercises = [];
+        _completedCache = [];
+        _selectedExerciseId = null;
+        _editControllers.clear();
+      });
+    } catch (e, stackTrace) {
+      print('TrainingScreen._startCustomProgram failed: $e\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to start workout: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _startingCustomProgram = false;
+        });
+      }
+    }
   }
 
   Widget _addExerciseCard() {
@@ -704,6 +834,135 @@ class _TrainingScreenState extends State<TrainingScreen> {
                     : const Text('Save Exercise'),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _programSelection() {
+    if (_availablePrograms.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('No programs available. Please sync or create one.'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 220,
+              child: ElevatedButton(
+                onPressed: _startingCustomProgram ? null : _startCustomProgram,
+                child: _startingCustomProgram
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Start Custom Workout'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final selected = _selectedProgram;
+    final hasExercises = selected?.programExercises.isNotEmpty ?? false;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Choose a program',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<ExerciseProgram>(
+            decoration: const InputDecoration(labelText: 'Program'),
+            value: _selectedProgram,
+            items: _availablePrograms
+                .map(
+                  (program) => DropdownMenuItem<ExerciseProgram>(
+                    value: program,
+                    child: Text(program.name),
+                  ),
+                )
+                .toList(),
+            onChanged: (program) {
+              setState(() => _selectedProgram = program);
+            },
+          ),
+          const SizedBox(height: 12),
+          _selectedProgram == null
+              ? const Text('Select a program to start.')
+              : _programPreview(_selectedProgram!),
+          const SizedBox(height: 16),
+          if (selected != null && !hasExercises)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Selected program has no exercises.',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed:
+                  _startingProgram || !hasExercises ? null : _startSelectedProgram,
+              child: _startingProgram
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Start Workout'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _startingCustomProgram ? null : _startCustomProgram,
+              child: _startingCustomProgram
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Start Custom Workout'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _programPreview(ExerciseProgram program) {
+    final goals = program.fitnessGoals
+        .map((goal) => goal.name)
+        .toList(growable: false);
+    final goalText = goals.isNotEmpty ? goals.join(', ') : '-';
+    final difficulty = program.difficultyLevel.value?.name ?? '-';
+    final exerciseCount = program.programExercises.length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              program.name,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(program.description),
+            const SizedBox(height: 8),
+            Text('Difficulty: $difficulty'),
+            Text('Goal: $goalText'),
+            Text('Exercises: $exerciseCount'),
           ],
         ),
       ),
