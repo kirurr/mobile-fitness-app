@@ -18,6 +18,10 @@ class PlannedExerciseProgramRepository {
     return local.getAll();
   }
 
+  Future<PlannedExerciseProgram?> getLocalPlannedProgramById(int id) {
+    return local.getById(id);
+  }
+
   Future<void> refreshPlannedPrograms() async {
     try {
       final remoteItems = await remote.getAll();

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
+import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/dto.dart';
 
 class PlanProgramScreen extends StatefulWidget {
-  const PlanProgramScreen({super.key});
+  final int? plannedProgramId;
+
+  const PlanProgramScreen({super.key, this.plannedProgramId});
 
   @override
   State<PlanProgramScreen> createState() => _PlanProgramScreenState();
@@ -15,6 +18,7 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
   bool _saving = false;
   List<ExerciseProgram> _programs = [];
   ExerciseProgram? _selectedProgram;
+  PlannedExerciseProgram? _editingPlan;
   final Set<DateTime> _selectedDates = {};
 
   @override
@@ -26,12 +30,21 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
   Future<void> _loadPrograms() async {
     final deps = DependencyScope.of(context);
     final programs = await deps.exerciseProgramRepository.getLocalPrograms();
+    PlannedExerciseProgram? existingPlan;
+    if (widget.plannedProgramId != null) {
+      existingPlan = await deps.plannedExerciseProgramRepository
+          .getLocalPlannedProgramById(widget.plannedProgramId!);
+    }
     if (!mounted) return;
     setState(() {
       _programs = programs;
-      _selectedProgram = programs.isNotEmpty ? programs.first : null;
+      _selectedProgram = _resolveSelectedProgram(programs, existingPlan);
+      _editingPlan = existingPlan;
       _loadingPrograms = false;
     });
+    if (existingPlan != null) {
+      _syncSelectedDates(existingPlan);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -97,12 +110,26 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
         programId: program.id,
         dates: dates,
       );
-      await DependencyScope.of(context)
-          .plannedExerciseProgramRepository
-          .create(payload);
+      final repo = DependencyScope.of(context).plannedExerciseProgramRepository;
+      final editingPlan = _editingPlan;
+      if (editingPlan == null) {
+        await repo.create(payload);
+      } else {
+        await repo.update(editingPlan.id, payload);
+      }
       if (!mounted) return;
       setState(() {
-        _selectedDates.clear();
+        if (_editingPlan == null) {
+          _selectedDates.clear();
+        } else {
+          _editingPlan = PlannedExerciseProgram(
+            id: _editingPlan!.id,
+            programId: program.id,
+            synced: _editingPlan!.synced,
+            pendingDelete: _editingPlan!.pendingDelete,
+            isLocalOnly: _editingPlan!.isLocalOnly,
+          );
+        }
       });
       ScaffoldMessenger.of(
         context,
@@ -126,10 +153,11 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
   Widget build(BuildContext context) {
     final dates = _selectedDates.toList()
       ..sort((a, b) => a.compareTo(b));
+    final isEditing = _editingPlan != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Plan Program'),
+        title: Text(isEditing ? 'Edit Plan' : 'Plan Program'),
       ),
       body: _loadingPrograms
           ? const Center(child: CircularProgressIndicator())
@@ -202,13 +230,35 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Save plan'),
+                          : Text(isEditing ? 'Save changes' : 'Save plan'),
                     ),
                   ),
                 ],
               ),
             ),
     );
+  }
+
+  ExerciseProgram? _resolveSelectedProgram(
+    List<ExerciseProgram> programs,
+    PlannedExerciseProgram? plan,
+  ) {
+    if (programs.isEmpty) return null;
+    if (plan == null) return programs.first;
+    for (final program in programs) {
+      if (program.id == plan.programId) {
+        return program;
+      }
+    }
+    return programs.first;
+  }
+
+  void _syncSelectedDates(PlannedExerciseProgram plan) {
+    _selectedDates
+      ..clear()
+      ..addAll(
+        plan.dates.map((d) => DateTime.tryParse(d.date)).whereType<DateTime>(),
+      );
   }
 
   String _formatDate(DateTime date) {

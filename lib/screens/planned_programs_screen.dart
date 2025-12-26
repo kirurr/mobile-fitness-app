@@ -3,6 +3,7 @@ import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/plan_program_screen.dart';
+import 'package:mobile_fitness_app/screens/training_screen.dart';
 
 class PlannedProgramsScreen extends StatelessWidget {
   const PlannedProgramsScreen({super.key});
@@ -68,9 +69,47 @@ class PlannedProgramsScreen extends StatelessWidget {
                           .join(', ');
 
                   return Card(
-                    child: ListTile(
-                      title: Text(programName),
-                      subtitle: Text('Planned dates: $datesText'),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(programName),
+                            subtitle: Text('Planned dates: $datesText'),
+                          ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => TrainingScreen(
+                                        initialProgramId: item.programId,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Text('Start Training'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => PlanProgramScreen(
+                                        plannedProgramId: item.id,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Text('Edit Plan'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
