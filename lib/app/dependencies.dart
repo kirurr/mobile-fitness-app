@@ -22,6 +22,12 @@ import 'package:mobile_fitness_app/difficulty_level/assembler.dart';
 import 'package:mobile_fitness_app/difficulty_level/repository.dart';
 import 'package:mobile_fitness_app/fitness_goal/assembler.dart';
 import 'package:mobile_fitness_app/fitness_goal/repository.dart';
+import 'package:mobile_fitness_app/user_completed_program/assembler.dart';
+import 'package:mobile_fitness_app/user_completed_program/repository.dart';
+import 'package:mobile_fitness_app/user_completed_exercise/assembler.dart';
+import 'package:mobile_fitness_app/user_completed_exercise/repository.dart';
+import 'package:mobile_fitness_app/planned_exercise_program/assembler.dart';
+import 'package:mobile_fitness_app/planned_exercise_program/repository.dart';
 
 class Dependencies {
   final Isar db;
@@ -35,6 +41,9 @@ class Dependencies {
   final UserSubscriptionRepository userSubscriptionRepository;
   final UserPaymentRepository userPaymentRepository;
   final UserDataRepository userDataRepository;
+  final UserCompletedProgramRepository userCompletedProgramRepository;
+  final UserCompletedExerciseRepository userCompletedExerciseRepository;
+  final PlannedExerciseProgramRepository plannedExerciseProgramRepository;
 
   Dependencies._({
     required this.db,
@@ -48,6 +57,9 @@ class Dependencies {
     required this.userSubscriptionRepository,
     required this.userPaymentRepository,
     required this.userDataRepository,
+    required this.userCompletedProgramRepository,
+    required this.userCompletedExerciseRepository,
+    required this.plannedExerciseProgramRepository,
   });
 
   static Future<Dependencies> init() async {
@@ -96,6 +108,20 @@ class Dependencies {
       isar: isarService,
       api: ApiClient.instance,
     );
+    final userCompletedProgramRepository = UserCompletedProgramAssembler.build(
+      isar: isarService,
+      api: ApiClient.instance,
+    );
+    final userCompletedExerciseRepository =
+        UserCompletedExerciseAssembler.build(
+          isar: isarService,
+          api: ApiClient.instance,
+        );
+    final plannedExerciseProgramRepository =
+        PlannedExerciseProgramAssembler.build(
+          isar: isarService,
+          api: ApiClient.instance,
+        );
 
     return Dependencies._(
       db: isarService,
@@ -109,6 +135,9 @@ class Dependencies {
       userSubscriptionRepository: userSubscriptionRepository,
       userPaymentRepository: userPaymentRepository,
       userDataRepository: userDataRepository,
+      userCompletedProgramRepository: userCompletedProgramRepository,
+      userCompletedExerciseRepository: userCompletedExerciseRepository,
+      plannedExerciseProgramRepository: plannedExerciseProgramRepository,
     );
   }
 }

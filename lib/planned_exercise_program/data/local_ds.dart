@@ -1,0 +1,143 @@
+import 'package:isar_community/isar.dart';
+import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
+
+class PlannedExerciseProgramLocalDataSource {
+  late Isar db;
+
+  IsarCollection<PlannedExerciseProgram> get _collection =>
+      db.plannedExercisePrograms;
+  IsarCollection<PlannedExerciseProgramDate> get _dates =>
+      db.plannedExerciseProgramDates;
+
+  PlannedExerciseProgramLocalDataSource(this.db);
+
+  Stream<List<PlannedExerciseProgram>> watchAll() {
+    return _collection.where().watch(fireImmediately: true).asyncMap((
+      items,
+    ) async {
+      for (final item in items) {
+        await _loadLinks(item);
+      }
+      return items;
+    });
+  }
+
+  Future<List<PlannedExerciseProgram>> getAll() async {
+    final items = await _collection.where().findAll();
+    for (final item in items) {
+      await _loadLinks(item);
+    }
+    return items;
+  }
+
+  Future<PlannedExerciseProgram?> getById(int id) async {
+    final item = await _collection.get(id);
+    if (item == null) return null;
+    await _loadLinks(item);
+    return item;
+  }
+
+  Future<List<PlannedExerciseProgram>> getUnsynced() async {
+    final items = await _collection.filter().syncedEqualTo(false).findAll();
+    for (final item in items) {
+      await _loadLinks(item);
+    }
+    return items;
+  }
+
+  Future<List<PlannedExerciseProgram>> getPendingDeletes() async {
+    final items = await _collection
+        .filter()
+        .pendingDeleteEqualTo(true)
+        .findAll();
+    for (final item in items) {
+      await _loadLinks(item);
+    }
+    return items;
+  }
+
+  Future<void> upsert(
+    PlannedExerciseProgram item, {
+    List<String>? datesOverride,
+  }) async {
+    final dates = datesOverride != null
+        ? datesOverride
+              .map(
+                (d) => PlannedExerciseProgramDate(
+                  id: Isar.autoIncrement,
+                  plannedExerciseProgramId: item.id,
+                  date: d,
+                )..plannedProgram.value = item,
+              )
+              .toList()
+        : item.dates.toList();
+
+    final programId = await db.writeTxn(() async => _collection.put(item));
+    item.id = programId;
+
+    final preparedDates = dates
+        .map(
+          (date) => PlannedExerciseProgramDate(
+            id: date.id,
+            plannedExerciseProgramId: programId,
+            date: date.date,
+          )..plannedProgram.value = item,
+        )
+        .toList();
+
+    await db.writeTxn(() async {
+      await _dates
+          .filter()
+          .plannedExerciseProgramIdEqualTo(programId)
+          .deleteAll();
+      await _dates.putAll(preparedDates);
+    });
+
+    final managedProgram = await _collection.get(programId);
+    if (managedProgram == null) return;
+
+    final savedDates = await _dates
+        .filter()
+        .plannedExerciseProgramIdEqualTo(programId)
+        .findAll();
+
+    managedProgram.program.value = item.program.value;
+    managedProgram.dates
+      ..clear()
+      ..addAll(savedDates);
+
+    await db.writeTxn(() async {
+      await managedProgram.program.save();
+      await managedProgram.dates.save();
+    });
+  }
+
+  Future<void> deleteById(int id) async {
+    await db.writeTxn(() async {
+      await _dates.filter().plannedExerciseProgramIdEqualTo(id).deleteAll();
+      await _collection.delete(id);
+    });
+  }
+
+  Future<void> replaceAll(List<PlannedExerciseProgram> items) async {
+    await db.writeTxn(() async {
+      await _collection.clear();
+      await _dates.clear();
+    });
+
+    for (final item in items) {
+      await upsert(item);
+    }
+  }
+
+  Future<void> _loadLinks(PlannedExerciseProgram item) async {
+    await item.program.load();
+    final dates = await _dates
+        .filter()
+        .plannedExerciseProgramIdEqualTo(item.id)
+        .findAll();
+    item.dates
+      ..clear()
+      ..addAll(dates);
+  }
+}
