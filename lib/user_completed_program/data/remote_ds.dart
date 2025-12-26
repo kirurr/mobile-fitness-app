@@ -46,7 +46,10 @@ class UserCompletedProgramRemoteDataSource {
     UserCompletedProgramPayloadDTO payload,
   ) async {
     final response = await safeApiCall(
-      () => _api.postAuth('/user-completed-program', data: payload.toJson()),
+      () => _api.postAuth(
+        '/user-completed-program',
+        data: _withIsoDates(payload),
+      ),
     );
     if (response.error != null) {
       throw response.error!;
@@ -64,7 +67,10 @@ class UserCompletedProgramRemoteDataSource {
     UserCompletedProgramPayloadDTO payload,
   ) async {
     final response = await safeApiCall(
-      () => _api.putAuth('/user-completed-program/$id', data: payload.toJson()),
+      () => _api.putAuth(
+        '/user-completed-program/$id',
+        data: _withIsoDates(payload),
+      ),
     );
     if (response.error != null) {
       throw response.error!;
@@ -84,5 +90,20 @@ class UserCompletedProgramRemoteDataSource {
     if (response.error != null) {
       throw response.error!;
     }
+  }
+
+  Map<String, dynamic> _withIsoDates(UserCompletedProgramPayloadDTO payload) {
+    return {
+      'userId': payload.userId,
+      'programId': payload.programId,
+      'startDate':
+          payload.startDate != null ? _toIsoString(payload.startDate!) : null,
+      'endDate': payload.endDate != null ? _toIsoString(payload.endDate!) : null,
+    };
+  }
+
+  String _toIsoString(String value) {
+    final parsed = DateTime.tryParse(value);
+    return (parsed ?? DateTime.parse(value)).toUtc().toIso8601String();
   }
 }

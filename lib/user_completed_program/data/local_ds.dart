@@ -115,6 +115,21 @@ class UserCompletedProgramLocalDataSource {
     });
   }
 
+  Future<void> attachCompletedExercises(int programId) async {
+    final program = await _collection.get(programId);
+    if (program == null) return;
+    final exercises = await _completedExercises
+        .filter()
+        .completedProgramIdEqualTo(programId)
+        .findAll();
+    program.completedExercises
+      ..clear()
+      ..addAll(exercises);
+    await db.writeTxn(() async {
+      await program.completedExercises.save();
+    });
+  }
+
   Future<void> deleteById(int id) async {
     await db.writeTxn(() async {
       await _completedExercises

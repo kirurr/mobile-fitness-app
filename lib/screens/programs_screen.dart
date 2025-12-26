@@ -86,6 +86,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
     final subscriptionId = _selectedSubscriptionId;
 
     if (name.isEmpty || description.isEmpty || difficultyId == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Name, description, difficulty are required')),
       );
@@ -125,6 +126,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
       }
       _resetForm();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -189,7 +191,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       DropdownButtonFormField<int>(
-                        value: _selectedDifficultyId,
+                        initialValue: _selectedDifficultyId,
                         decoration: const InputDecoration(labelText: 'Difficulty Level'),
                         items: _difficultyLevels
                             .map(
@@ -201,17 +203,17 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
                             .toList(),
                         onChanged: (val) => setState(() => _selectedDifficultyId = val),
                       ),
-                      DropdownButtonFormField<int>(
-                        value: _selectedSubscriptionId,
+                      DropdownButtonFormField<int?>(
+                        initialValue: _selectedSubscriptionId,
                         decoration:
                             const InputDecoration(labelText: 'Subscription (optional)'),
                         items: [
-                          const DropdownMenuItem<int>(
+                          const DropdownMenuItem<int?>(
                             value: null,
                             child: Text('None'),
                           ),
                           ..._subscriptions.map(
-                            (s) => DropdownMenuItem<int>(
+                            (s) => DropdownMenuItem<int?>(
                               value: s.id,
                               child: Text('${s.name} (${s.monthlyCost})'),
                             ),

@@ -182,7 +182,7 @@ void main() {
         exercise: exercise,
         name: 'Stale Plan',
       );
-      await ExerciseProgramLocalDataSource(isar).upsert(staleProgram);
+      await ExerciseProgramLocalDataSource(isar).create(staleProgram);
 
       await repo.refreshPrograms();
 
@@ -236,7 +236,7 @@ void main() {
         exercise: exercise,
         name: 'To Delete',
       );
-      await ExerciseProgramLocalDataSource(isar).upsert(stored);
+      await ExerciseProgramLocalDataSource(isar).create(stored);
       remote.items.add(stored);
 
       await repo.deleteProgram(stored.id);

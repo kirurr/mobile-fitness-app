@@ -46,7 +46,10 @@ class PlannedExerciseProgramRemoteDataSource {
     PlannedExerciseProgramPayloadDTO payload,
   ) async {
     final response = await safeApiCall(
-      () => _api.postAuth('/planned-exercise-program', data: payload.toJson()),
+      () => _api.postAuth(
+        '/planned-exercise-program',
+        data: _withIsoDates(payload),
+      ),
     );
     if (response.error != null) {
       throw response.error!;
@@ -64,8 +67,10 @@ class PlannedExerciseProgramRemoteDataSource {
     PlannedExerciseProgramPayloadDTO payload,
   ) async {
     final response = await safeApiCall(
-      () =>
-          _api.putAuth('/planned-exercise-program/$id', data: payload.toJson()),
+      () => _api.putAuth(
+        '/planned-exercise-program/$id',
+        data: _withIsoDates(payload),
+      ),
     );
     if (response.error != null) {
       throw response.error!;
@@ -85,5 +90,17 @@ class PlannedExerciseProgramRemoteDataSource {
     if (response.error != null) {
       throw response.error!;
     }
+  }
+
+  Map<String, dynamic> _withIsoDates(PlannedExerciseProgramPayloadDTO payload) {
+    return {
+      'programId': payload.programId,
+      'dates': payload.dates.map(_toIsoString).toList(),
+    };
+  }
+
+  String _toIsoString(String value) {
+    final parsed = DateTime.tryParse(value);
+    return (parsed ?? DateTime.parse(value)).toUtc().toIso8601String();
   }
 }

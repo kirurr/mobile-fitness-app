@@ -22,15 +22,10 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    print(
-      'interceptor error: ${err.response?.statusCode} ${err.requestOptions.path}',
-    );
     // Check if the error is a 401 Unauthorized
     if (err.response?.statusCode == 401) {
-      print('401 detected, attempting to refresh token...');
       // Check if this is a request to the signin endpoint
       if (err.requestOptions.path.contains('/auth/signin')) {
-        print('401 on signin detected, logging user out...');
         // If there's a 401 on signin, log the user out
         await _authService.signout();
         handler.next(err);
@@ -66,16 +61,11 @@ class AuthInterceptor extends Interceptor {
       _isRefreshing = true;
 
       try {
-        print('Attempting to re-authenticate user...');
         // Get stored credentials
         String? email = await _storage.getEmail();
         String? password = await _storage.getPassword();
 
-        print('Stored email: $email');
-        print('Stored password: $password');
-
         if (email != null && password != null) {
-          print('Re-authenticating user...');
           // Attempt to re-authenticate
           var result = await _authService.signin(
             SignInDTO(email: email, password: password),
@@ -101,7 +91,6 @@ class AuthInterceptor extends Interceptor {
           }
           err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
 
-          print(newToken);
           var newOptions = err.requestOptions;
           newOptions.headers['Authorization'] = 'Bearer $newToken';
           // Retry the original request using the updated token

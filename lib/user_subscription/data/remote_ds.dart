@@ -40,7 +40,7 @@ class UserSubscriptionRemoteDataSource {
 
   Future<UserSubscription> create(UserSubscriptionPayloadDTO payload) async {
     final response = await safeApiCall(
-      () => _api.postAuth('/user-subscription', data: payload.toJson()),
+      () => _api.postAuth('/user-subscription', data: _withIsoDates(payload)),
     );
     if (response.error != null) {
       throw response.error!;
@@ -53,7 +53,7 @@ class UserSubscriptionRemoteDataSource {
 
   Future<UserSubscription> update(int id, UserSubscriptionPayloadDTO payload) async {
     final response = await safeApiCall(
-      () => _api.putAuth('/user-subscription/$id', data: payload.toJson()),
+      () => _api.putAuth('/user-subscription/$id', data: _withIsoDates(payload)),
     );
     if (response.error != null) {
       throw response.error!;
@@ -69,5 +69,19 @@ class UserSubscriptionRemoteDataSource {
     if (response.error != null) {
       throw response.error!;
     }
+  }
+
+  Map<String, dynamic> _withIsoDates(UserSubscriptionPayloadDTO payload) {
+    return {
+      'userId': payload.userId,
+      'subscriptionId': payload.subscriptionId,
+      'startDate': _toIsoString(payload.startDate),
+      'endDate': _toIsoString(payload.endDate),
+    };
+  }
+
+  String _toIsoString(String value) {
+    final parsed = DateTime.tryParse(value);
+    return (parsed ?? DateTime.parse(value)).toUtc().toIso8601String();
   }
 }

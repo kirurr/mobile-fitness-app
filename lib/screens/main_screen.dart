@@ -4,6 +4,8 @@ import 'package:mobile_fitness_app/auth/service.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
 import 'package:mobile_fitness_app/screens/programs_screen.dart';
+import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
+import 'package:mobile_fitness_app/screens/training_screen.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -125,10 +127,10 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () async {
-                await fitnessRepo.refreshGoals();
-                await difficlutyRepo.refreshLevels();
-              await categoryRepo.refreshCategories();
-              await muscleRepo.refreshGroups();
+              //   await fitnessRepo.refreshGoals();
+              //   await difficlutyRepo.refreshLevels();
+              // await categoryRepo.refreshCategories();
+              // await muscleRepo.refreshGroups();
               await exerciseRepo.refreshExercises();
               await programRepo.refreshPrograms();
               await subscriptionRepo.refreshSubscriptions();
@@ -152,7 +154,8 @@ class _MainScreenState extends State<MainScreen> {
                 if (userData == null) {
                   if (!_promptedUserData) {
                     _promptedUserData = true;
-                    Future.microtask(() {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
                           builder: (_) => const UserDataFormScreen(),
@@ -241,6 +244,34 @@ class _MainScreenState extends State<MainScreen> {
               itemBuilder: (context, item) => ListTile(
                 title: Text(item.name),
                 subtitle: Text('Monthly cost: ${item.monthlyCost}'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const TrainingScreen(),
+                    ),
+                  ),
+                  child: const Text('Start Training'),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const UserSubscriptionsScreen(),
+                    ),
+                  ),
+                  child: const Text('Create User Subscription'),
+                ),
               ),
             ),
             _buildSection(

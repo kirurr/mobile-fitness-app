@@ -32,11 +32,14 @@ class UserCompletedExerciseRepository {
     }
   }
 
-  Future<void> create(UserCompletedExercisePayloadDTO payload) async {
+  Future<UserCompletedExercise> create(UserCompletedExercisePayloadDTO payload) async {
     try {
       final created = await remote.create(payload);
-      await local.upsert(created);
-    } catch (e) {
+      final merged = _mergeWithPayload(created, payload);
+      await local.upsert(merged);
+      return merged;
+    } catch (e, stackTrace) {
+      print('UserCompletedExerciseRepository.create failed: $e\n$stackTrace');
       final fallback = UserCompletedExercise(
         id: Isar.autoIncrement,
         completedProgramId: payload.completedProgramId,
@@ -52,15 +55,19 @@ class UserCompletedExerciseRepository {
         isLocalOnly: true,
       );
       await local.upsert(fallback);
+      return fallback;
     }
   }
 
-  Future<void> update(int id, UserCompletedExercisePayloadDTO payload) async {
+  Future<UserCompletedExercise?> update(int id, UserCompletedExercisePayloadDTO payload) async {
+    final existing = await local.getById(id);
     try {
       final updated = await remote.update(id, payload);
-      await local.upsert(updated);
-    } catch (e) {
-      final existing = await local.getById(id);
+      final merged = _mergeWithPayload(updated, payload, existing: existing);
+      await local.upsert(merged);
+      return merged;
+    } catch (e, stackTrace) {
+      print('UserCompletedExerciseRepository.update failed: $e\n$stackTrace');
       if (existing != null) {
         final updatedLocal = UserCompletedExercise(
           id: existing.id,
@@ -80,8 +87,10 @@ class UserCompletedExerciseRepository {
         updatedLocal.programExercise.value = existing.programExercise.value;
         updatedLocal.exercise.value = existing.exercise.value;
         await local.upsert(updatedLocal);
+        return updatedLocal;
       }
     }
+    return null;
   }
 
   Future<void> delete(int id) async {
@@ -155,19 +164,51 @@ class UserCompletedExerciseRepository {
       try {
         if (item.isLocalOnly) {
           final created = await remote.create(payload);
-          created.exercise.value ??= item.exercise.value;
-          created.programExercise.value ??= item.programExercise.value;
+          final merged = _mergeWithPayload(created, payload, existing: item);
+          merged.exercise.value ??= item.exercise.value;
+          merged.programExercise.value ??= item.programExercise.value;
           await local.deleteById(item.id);
-          await local.upsert(created);
+          await local.upsert(merged);
         } else {
           final updated = await remote.update(item.id, payload);
-          updated.exercise.value ??= item.exercise.value;
-          updated.programExercise.value ??= item.programExercise.value;
-          await local.upsert(updated);
+          final merged = _mergeWithPayload(updated, payload, existing: item);
+          merged.exercise.value ??= item.exercise.value;
+          merged.programExercise.value ??= item.programExercise.value;
+          await local.upsert(merged);
         }
       } catch (_) {
         continue;
       }
     }
+  }
+
+  UserCompletedExercise _mergeWithPayload(
+    UserCompletedExercise remoteItem,
+    UserCompletedExercisePayloadDTO payload, {
+    UserCompletedExercise? existing,
+  }) {
+    final merged = UserCompletedExercise(
+      id: remoteItem.id,
+      completedProgramId: remoteItem.completedProgramId,
+      programExerciseId:
+          remoteItem.programExerciseId ??
+          payload.programExerciseId ??
+          existing?.programExerciseId,
+      exerciseId:
+          remoteItem.exerciseId ?? payload.exerciseId ?? existing?.exerciseId,
+      sets: remoteItem.sets,
+      reps: remoteItem.reps,
+      duration: remoteItem.duration,
+      weight: remoteItem.weight,
+      restDuration: remoteItem.restDuration,
+      synced: remoteItem.synced,
+      pendingDelete: remoteItem.pendingDelete,
+      isLocalOnly: remoteItem.isLocalOnly,
+    );
+    merged.exercise.value =
+        remoteItem.exercise.value ?? existing?.exercise.value;
+    merged.programExercise.value =
+        remoteItem.programExercise.value ?? existing?.programExercise.value;
+    return merged;
   }
 }

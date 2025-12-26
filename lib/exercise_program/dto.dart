@@ -74,13 +74,14 @@ class ExerciseProgramDTO {
           .map((item) => (item as Map<String, dynamic>)['id'] as int)
           .toList(),
       exercises: (json['exercises'] as List? ?? [])
-          .map(
-            (item) => ProgramExerciseDTO.fromJson(
-              ((item as Map<String, dynamic>)['programExercise']
-                  as Map<String, dynamic>),
-            ),
-          )
-          .toList(),
+          .map((item) {
+            final map = item as Map<String, dynamic>;
+            final nested = map['programExercise'];
+            if (nested is Map<String, dynamic>) {
+              return ProgramExerciseDTO.fromJson(nested);
+            }
+            return ProgramExerciseDTO.fromJson(map);
+          }).toList(),
     );
   }
 

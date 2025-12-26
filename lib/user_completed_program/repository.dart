@@ -28,10 +28,15 @@ class UserCompletedProgramRepository {
     }
   }
 
-  Future<void> create(UserCompletedProgramPayloadDTO payload) async {
+  Future<void> refreshLocalLinksForProgram(int programId) {
+    return local.attachCompletedExercises(programId);
+  }
+
+  Future<UserCompletedProgram> create(UserCompletedProgramPayloadDTO payload) async {
     try {
       final created = await remote.create(payload);
       await local.upsert(created);
+      return created;
     } catch (e) {
       final fallback = UserCompletedProgram(
         id: Isar.autoIncrement,
@@ -44,15 +49,21 @@ class UserCompletedProgramRepository {
         isLocalOnly: true,
       );
       await local.upsert(fallback);
+      return fallback;
     }
   }
 
-  Future<void> update(int id, UserCompletedProgramPayloadDTO payload) async {
+  Future<UserCompletedProgram?> update(int id, UserCompletedProgramPayloadDTO payload) async {
+    final existing = await local.getById(id);
     try {
       final updated = await remote.update(id, payload);
+      if (existing != null) {
+        updated.program.value ??= existing.program.value;
+        updated.completedExercises.addAll(existing.completedExercises);
+      }
       await local.upsert(updated);
+      return updated;
     } catch (e) {
-      final existing = await local.getById(id);
       if (existing != null) {
         final updatedLocal = UserCompletedProgram(
           id: existing.id,
@@ -67,8 +78,10 @@ class UserCompletedProgramRepository {
         updatedLocal.program.value = existing.program.value;
         updatedLocal.completedExercises.addAll(existing.completedExercises);
         await local.upsert(updatedLocal);
+        return updatedLocal;
       }
     }
+    return null;
   }
 
   Future<void> delete(int id) async {
