@@ -11,7 +11,10 @@ import 'package:mobile_fitness_app/user_completed_program/model.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
 
 class TrainingScreen extends StatefulWidget {
-  const TrainingScreen({super.key});
+  final int? completedProgramId;
+  final int? initialProgramId;
+
+  const TrainingScreen({super.key, this.completedProgramId, this.initialProgramId});
 
   @override
   State<TrainingScreen> createState() => _TrainingScreenState();
@@ -95,7 +98,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         'TrainingScreen._bootstrap: exercises loaded (${exercises.length})',
       );
       final difficultyId = userData.trainingLevel.value?.id;
-      final fitnessGoalId = userData.fitnessGoal.value?.id;
       if (difficultyId == null) {
         setState(() {
           _error = 'Training level not set for user.';
@@ -110,12 +112,45 @@ class _TrainingScreenState extends State<TrainingScreen> {
         'TrainingScreen._bootstrap: programs loaded (${programs.length})',
       );
 
+      final completedProgramId = widget.completedProgramId;
+      final initialProgramId = widget.initialProgramId;
+      UserCompletedProgram? completedProgram;
+      ExerciseProgram? selectedProgram;
+      List<UserCompletedExercise> completedExercises = [];
+
+      if (completedProgramId != null) {
+        completedProgram = await deps.userCompletedProgramRepository
+            .getLocalCompletedProgramById(completedProgramId);
+        if (completedProgram == null) {
+          if (!mounted) return;
+          setState(() {
+            _error = 'Completed program not found.';
+            _loading = false;
+          });
+          return;
+        }
+
+        selectedProgram = completedProgram.program.value ??
+            _findProgramById(programs, completedProgram.programId);
+        completedExercises = await deps.userCompletedExerciseRepository
+            .getLocalCompletedExercises(completedProgram.id);
+      } else if (initialProgramId != null) {
+        selectedProgram = _findProgramById(programs, initialProgramId);
+      }
+
       if (!mounted) return;
       setState(() {
         _userData = userData;
         _exercises = exercises;
         _availablePrograms = programs;
-        _selectedProgram = programs.isNotEmpty ? programs.first : null;
+        _selectedProgram =
+            selectedProgram ?? (programs.isNotEmpty ? programs.first : null);
+        _program = selectedProgram;
+        _completedProgram = completedProgram;
+        _currentCompletedExercises = completedExercises;
+        _completedCache = completedExercises;
+        _selectedExerciseId = null;
+        _editControllers.clear();
         _loading = false;
       });
     } catch (e, stackTrace) {
@@ -134,6 +169,15 @@ class _TrainingScreenState extends State<TrainingScreen> {
       (ex) => ex.id == id,
       orElse: () => Exercise(id: id, name: 'Exercise $id', type: ''),
     );
+  }
+
+  ExerciseProgram? _findProgramById(List<ExerciseProgram> programs, int id) {
+    for (final program in programs) {
+      if (program.id == id) {
+        return program;
+      }
+    }
+    return null;
   }
 
   void _prefillFromExisting(int? exerciseId) {
@@ -269,11 +313,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
       restDuration: item.restDuration,
     );
 
-    final repo = DependencyScope.of(context).userCompletedExerciseRepository;
+    final deps = DependencyScope.of(context);
+    final repo = deps.userCompletedExerciseRepository;
+    final programRepo = deps.userCompletedProgramRepository;
     await repo.update(item.id, payload);
-    await DependencyScope.of(context)
-        .userCompletedProgramRepository
-        .refreshLocalLinksForProgram(item.completedProgramId);
+    await programRepo.refreshLocalLinksForProgram(item.completedProgramId);
     final editors = _editControllers[item.id];
     if (editors != null) {
       editors.sets.text = updatedSets.toString();
@@ -881,7 +925,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           const SizedBox(height: 12),
           DropdownButtonFormField<ExerciseProgram>(
             decoration: const InputDecoration(labelText: 'Program'),
-            value: _selectedProgram,
+            initialValue: _selectedProgram,
             items: _availablePrograms
                 .map(
                   (program) => DropdownMenuItem<ExerciseProgram>(
@@ -1176,12 +1220,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
 
     try {
-      await DependencyScope.of(
-        context,
-      ).userCompletedExerciseRepository.update(item.id, payload);
-      await DependencyScope.of(context)
-          .userCompletedProgramRepository
-          .refreshLocalLinksForProgram(item.completedProgramId);
+      final deps = DependencyScope.of(context);
+      final repo = deps.userCompletedExerciseRepository;
+      final programRepo = deps.userCompletedProgramRepository;
+      await repo.update(item.id, payload);
+      await programRepo.refreshLocalLinksForProgram(item.completedProgramId);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

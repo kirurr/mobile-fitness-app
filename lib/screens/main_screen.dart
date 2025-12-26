@@ -6,6 +6,7 @@ import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
 import 'package:mobile_fitness_app/screens/programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
+import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -110,6 +111,11 @@ class _MainScreenState extends State<MainScreen> {
     final userPaymentRepo = deps.userPaymentRepository;
     final userRepo = deps.userDataRepository;
 
+    final userCompletedProgramRepo =
+        deps.userCompletedProgramRepository;
+    final userCompletedExerciseRepo =
+        deps.userCompletedExerciseRepository;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Main'),
@@ -131,11 +137,13 @@ class _MainScreenState extends State<MainScreen> {
               //   await difficlutyRepo.refreshLevels();
               // await categoryRepo.refreshCategories();
               // await muscleRepo.refreshGroups();
-              await exerciseRepo.refreshExercises();
+              // await exerciseRepo.refreshExercises();
               await programRepo.refreshPrograms();
-              await subscriptionRepo.refreshSubscriptions();
-              await userSubscriptionRepo.refreshUserSubscriptions();
-              await userPaymentRepo.refreshUserPayments();
+              await userCompletedProgramRepo.refreshCompletedPrograms();
+              // await userCompletedExerciseRepo.refreshCompletedExercises();
+              // await subscriptionRepo.refreshSubscriptions();
+              // await userSubscriptionRepo.refreshUserSubscriptions();
+              // await userPaymentRepo.refreshUserPayments();
               await _refreshUserData();
             },
             child: const Text('Test API'),
@@ -257,6 +265,20 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ),
                   child: const Text('Start Training'),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const UserCompletedProgramsScreen(),
+                    ),
+                  ),
+                  child: const Text('Completed Programs'),
                 ),
               ),
             ),

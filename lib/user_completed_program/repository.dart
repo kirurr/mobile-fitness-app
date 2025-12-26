@@ -17,6 +17,10 @@ class UserCompletedProgramRepository {
     return local.getAll();
   }
 
+  Future<UserCompletedProgram?> getLocalCompletedProgramById(int id) {
+    return local.getById(id);
+  }
+
   Future<void> refreshCompletedPrograms() async {
     try {
       final remoteItems = await remote.getAll();
