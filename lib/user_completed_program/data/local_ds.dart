@@ -57,8 +57,13 @@ class UserCompletedProgramLocalDataSource {
     return items;
   }
 
-  Future<void> upsert(UserCompletedProgram item) async {
-    final exercises = item.completedExercises.toList();
+  Future<void> upsert(
+    UserCompletedProgram item, {
+    List<UserCompletedExercise>? completedExercisesOverride,
+  }) async {
+    final exercises =
+        completedExercisesOverride ?? item.completedExercises.toList();
+    final shouldReplaceExercises = exercises.isNotEmpty;
 
     await db.writeTxn(() async {
       await _collection.put(item);
@@ -88,7 +93,7 @@ class UserCompletedProgramLocalDataSource {
         )
         .toList();
 
-    if (preparedExercises.isNotEmpty) {
+    if (shouldReplaceExercises) {
       await db.writeTxn(() async {
         await _completedExercises
             .filter()

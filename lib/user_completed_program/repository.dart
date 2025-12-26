@@ -45,7 +45,14 @@ class UserCompletedProgramRepository {
       updated.program.value ??= existing.program.value;
       updated.completedExercises.addAll(existing.completedExercises);
     }
-    await local.upsert(updated);
+    final completedExercisesOverride =
+        updated.completedExercises.isEmpty && existing != null
+            ? existing.completedExercises.toList()
+            : null;
+    await local.upsert(
+      updated,
+      completedExercisesOverride: completedExercisesOverride,
+    );
     return updated;
   }
 
@@ -111,12 +118,26 @@ class UserCompletedProgramRepository {
           created.program.value ??= item.program.value;
           created.completedExercises.addAll(item.completedExercises);
           await local.deleteById(item.id);
-          await local.upsert(created);
+          final completedExercisesOverride =
+              created.completedExercises.isEmpty
+                  ? item.completedExercises.toList()
+                  : null;
+          await local.upsert(
+            created,
+            completedExercisesOverride: completedExercisesOverride,
+          );
         } else {
           final updated = await remote.update(item.id, payload);
           updated.program.value ??= item.program.value;
           updated.completedExercises.addAll(item.completedExercises);
-          await local.upsert(updated);
+          final completedExercisesOverride =
+              updated.completedExercises.isEmpty
+                  ? item.completedExercises.toList()
+                  : null;
+          await local.upsert(
+            updated,
+            completedExercisesOverride: completedExercisesOverride,
+          );
         }
       } catch (_) {
         continue;
