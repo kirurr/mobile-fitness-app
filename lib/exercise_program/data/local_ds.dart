@@ -1,6 +1,5 @@
 import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/difficulty_level/model.dart';
-import 'package:mobile_fitness_app/exercise_program/dto.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/exercise/model.dart';
 import 'package:mobile_fitness_app/fitness_goal/model.dart';
@@ -142,132 +141,9 @@ class ExerciseProgramLocalDataSource {
     );
   }
 
-  // Future<void> testUpdate(int id, ExerciseProgramPayloadDTO payload) async {
-  //   await db.writeTxn(() async {
-  //     final existing = await _collection.get(id);
-
-  //     if (existing == null) {
-  //       print('existing is null');
-  //       return;
-  //     }
-
-  //     // Перезаписываем объект (delete не обязателен, но пусть остаётся)
-  //     await _collection.delete(id);
-
-  //     final newProgram = ExerciseProgram(
-  //       id: id,
-  //       userId: existing.userId,
-  //       name: payload.name,
-  //       description: payload.description,
-  //     );
-
-  //     // сохраняем, чтобы объект был attached
-  //     await _collection.put(newProgram);
-
-  //     // ---- ссылки ----
-
-  //     // difficulty level
-  //     if (payload.difficultyLevelId != null) {
-  //       newProgram.difficultyLevel.value = await db.difficultyLevels.get(
-  //         payload.difficultyLevelId!,
-  //       );
-  //     } else {
-  //       newProgram.difficultyLevel.value = null;
-  //     }
-
-  //     // subscription
-  //     if (payload.subscriptionId != null) {
-  //       newProgram.subscription.value = await db.subscriptions.get(
-  //         payload.subscriptionId!,
-  //       );
-  //     } else {
-  //       newProgram.subscription.value = null;
-  //     }
-
-  //     // fitness goals
-  //     if (payload.fitnessGoalIds.isNotEmpty) {
-  //       final goals = await db.fitnessGoals
-  //           .where()
-  //           .anyOf(payload.fitnessGoalIds, (q, id) => q.idEqualTo(id))
-  //           .findAll();
-
-  //       newProgram.fitnessGoals
-  //         ..clear()
-  //         ..addAll(goals);
-  //     }
-
-  //     // exercises (Фильтруем null ids!)
-  //     final exerciseIds = payload.exercises
-  //         .map((e) => e.id)
-  //         .whereType<int>() // ← убирает null
-  //         .toList();
-
-  //     if (exerciseIds.isNotEmpty) {
-  //       final programExercises = await db.programExercises
-  //           .where()
-  //           .anyOf(exerciseIds, (q, id) => q.idEqualTo(id))
-  //           .findAll();
-
-  //       newProgram.programExercises
-  //         ..clear()
-  //         ..addAll(programExercises);
-  //     }
-
-  //     // ---- сохраняем ссылки ----
-  //     await newProgram.difficultyLevel.save();
-  //     await newProgram.subscription.save();
-  //     await newProgram.fitnessGoals.save();
-  //     await newProgram.programExercises.save();
-  //   });
-  // }
-
-  Future<void> updateFromPayload(
-    int id,
-    ExerciseProgramPayloadDTO payload,
+  Future<void> updateFromProgram(ExerciseProgram program,
+    List<ProgramExercise>? programExercises,
   ) async {
-    final existing = await _collection.get(id);
-    final userId = payload.userId ?? existing?.userId;
-
-    final difficulty = await db.difficultyLevels.get(payload.difficultyLevelId);
-    final subscription = payload.subscriptionId == null
-        ? null
-        : await db.subscriptions.get(payload.subscriptionId!);
-    final goals = payload.fitnessGoalIds.isEmpty
-        ? <FitnessGoal>[]
-        : await db.fitnessGoals
-              .where()
-              .anyOf(payload.fitnessGoalIds, (q, id) => q.idEqualTo(id))
-              .findAll();
-
-    final program = ExerciseProgram(
-      id: id,
-      userId: userId,
-      name: payload.name,
-      description: payload.description,
-    );
-
-    if (difficulty != null) {
-      program.difficultyLevel.value = difficulty;
-    }
-    if (subscription != null) {
-      program.subscription.value = subscription;
-    }
-    program.fitnessGoals.addAll(goals);
-
-    final programExercises = payload.exercises
-        .map(
-          (e) => ProgramExercise(
-            id: e.id ?? Isar.autoIncrement,
-            exerciseId: e.exerciseId,
-            order: e.order,
-            sets: e.sets,
-            reps: e.reps,
-            duration: e.duration,
-            restDuration: e.restDuration,
-          ),
-        )
-        .toList();
-
     await _saveProgram(
       program,
       clearExistingExercises: true,
@@ -283,6 +159,7 @@ class ExerciseProgramLocalDataSource {
     try {
       final incomingProgramExercises =
           programExercisesOverride ?? item.programExercises.toList();
+      final shouldUpdateProgramExercises = incomingProgramExercises.isNotEmpty;
       print(
         'ExerciseProgramLocalDataSource._saveProgram: programId=${item.id}, '
         'incomingExercises=${incomingProgramExercises.length}, '
@@ -314,7 +191,7 @@ class ExerciseProgramLocalDataSource {
       final createdProgramExercises = incomingProgramExercises
           .map(
             (pe) => ProgramExercise(
-              id: Isar.autoIncrement,
+              id: pe.id,
               exerciseId: pe.exerciseId,
               order: pe.order,
               sets: pe.sets,
@@ -334,43 +211,45 @@ class ExerciseProgramLocalDataSource {
         final managedProgram = await _collection.get(programId);
         if (managedProgram == null) return;
 
-        if (clearExistingExercises) {
-          await _programExercises
-              .filter()
-              .program((q) => q.idEqualTo(item.id))
-              .deleteAll();
-        }
-
-        // 1) Create ProgramExercise rows first (no links yet).
-        final peIds = await _programExercises.putAll(createdProgramExercises);
-        print(
-          'ExerciseProgramLocalDataSource._saveProgram: '
-          'putAllIds=${peIds.length}',
-        );
-        final managedPEs = (await _programExercises.getAll(peIds))
-            .whereType<ProgramExercise>()
-            .toList();
-        print(
-          'ExerciseProgramLocalDataSource._saveProgram: '
-          'managedPEs=${managedPEs.length}',
-        );
-
-        // 2) Attach relations to ProgramExercise and save links.
-        for (final pe in managedPEs) {
-          pe.program.value = managedProgram;
-          await pe.program.save();
-
-          final exercise = exerciseMap[pe.exerciseId];
-          if (exercise != null) {
-            pe.exercise.value = exercise;
-            await pe.exercise.save();
+        if (shouldUpdateProgramExercises) {
+          if (clearExistingExercises) {
+            await _programExercises
+                .filter()
+                .program((q) => q.idEqualTo(item.id))
+                .deleteAll();
           }
-        }
 
-        // 3) Attach ProgramExercise list to ExerciseProgram and save links.
-        managedProgram.programExercises
-          ..clear()
-          ..addAll(managedPEs);
+          // 1) Create ProgramExercise rows first (no links yet).
+          final peIds = await _programExercises.putAll(createdProgramExercises);
+          print(
+            'ExerciseProgramLocalDataSource._saveProgram: '
+            'putAllIds=${peIds.length}',
+          );
+          final managedPEs = (await _programExercises.getAll(peIds))
+              .whereType<ProgramExercise>()
+              .toList();
+          print(
+            'ExerciseProgramLocalDataSource._saveProgram: '
+            'managedPEs=${managedPEs.length}',
+          );
+
+          // 2) Attach relations to ProgramExercise and save links.
+          for (final pe in managedPEs) {
+            pe.program.value = managedProgram;
+            await pe.program.save();
+
+            final exercise = exerciseMap[pe.exerciseId];
+            if (exercise != null) {
+              pe.exercise.value = exercise;
+              await pe.exercise.save();
+            }
+          }
+
+          // 3) Attach ProgramExercise list to ExerciseProgram and save links.
+          managedProgram.programExercises
+            ..clear()
+            ..addAll(managedPEs);
+        }
         managedProgram.difficultyLevel.value = difficulty;
         managedProgram.subscription.value = subscription;
         managedProgram.fitnessGoals
@@ -380,7 +259,9 @@ class ExerciseProgramLocalDataSource {
         await managedProgram.difficultyLevel.save();
         await managedProgram.subscription.save();
         await managedProgram.fitnessGoals.save();
-        await managedProgram.programExercises.save();
+        if (shouldUpdateProgramExercises) {
+          await managedProgram.programExercises.save();
+        }
       });
     } catch (e, stackTrace) {
       print('ExerciseProgramLocalDataSource._saveProgram failed: $e');

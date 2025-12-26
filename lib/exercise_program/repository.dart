@@ -1,4 +1,3 @@
-import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/exercise_program/data/local_ds.dart';
 import 'package:mobile_fitness_app/exercise_program/data/remote_ds.dart';
 import 'package:mobile_fitness_app/exercise_program/dto.dart';
@@ -43,9 +42,8 @@ class ExerciseProgramRepository {
 
   Future<ExerciseProgram> createProgram(ExerciseProgramPayloadDTO payload) async {
     final created = await remote.create(payload);
-    final payloadExercises =
-        payload.exercises.isNotEmpty ? _mapPayloadExercises(payload, created) : null;
-    await local.create(created, programExercises: payloadExercises);
+    final programExercises = created.programExercises.toList();
+    await local.create(created, programExercises: programExercises);
     return created;
   }
 
@@ -54,8 +52,9 @@ class ExerciseProgramRepository {
       'ExerciseProgramRepository.updateProgram: '
       'id=$id payloadExercises=${payload.exercises.length}',
     );
-    await local.updateFromPayload(id, payload);
     final updated = await remote.update(id, payload);
+    final programExercises = updated.programExercises.toList();
+    await local.updateFromProgram(updated, programExercises);
     return updated;
   }
 
@@ -64,22 +63,4 @@ class ExerciseProgramRepository {
     await local.deleteById(id);
   }
 
-  List<ProgramExercise> _mapPayloadExercises(
-    ExerciseProgramPayloadDTO payload,
-    ExerciseProgram program,
-  ) {
-    return payload.exercises
-        .map(
-          (e) => ProgramExercise(
-                id: e.id ?? Isar.autoIncrement,
-                exerciseId: e.exerciseId,
-                order: e.order,
-                sets: e.sets,
-                reps: e.reps,
-                duration: e.duration,
-                restDuration: e.restDuration,
-              )..program.value = program,
-        )
-        .toList();
-  }
 }

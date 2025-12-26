@@ -1,4 +1,3 @@
-import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/user_completed_program/data/local_ds.dart';
 import 'package:mobile_fitness_app/user_completed_program/data/remote_ds.dart';
 import 'package:mobile_fitness_app/user_completed_program/dto.dart';
@@ -33,55 +32,21 @@ class UserCompletedProgramRepository {
   }
 
   Future<UserCompletedProgram> create(UserCompletedProgramPayloadDTO payload) async {
-    try {
       final created = await remote.create(payload);
       await local.upsert(created);
       return created;
-    } catch (e) {
-      final fallback = UserCompletedProgram(
-        id: Isar.autoIncrement,
-        userId: payload.userId,
-        programId: payload.programId,
-        startDate: payload.startDate ?? DateTime.now().toIso8601String(),
-        endDate: payload.endDate,
-        synced: false,
-        pendingDelete: false,
-        isLocalOnly: true,
-      );
-      await local.upsert(fallback);
-      return fallback;
-    }
   }
 
   Future<UserCompletedProgram?> update(int id, UserCompletedProgramPayloadDTO payload) async {
     final existing = await local.getById(id);
-    try {
-      final updated = await remote.update(id, payload);
-      if (existing != null) {
-        updated.program.value ??= existing.program.value;
-        updated.completedExercises.addAll(existing.completedExercises);
-      }
-      await local.upsert(updated);
-      return updated;
-    } catch (e) {
-      if (existing != null) {
-        final updatedLocal = UserCompletedProgram(
-          id: existing.id,
-          userId: existing.userId,
-          programId: payload.programId,
-          startDate: payload.startDate ?? existing.startDate,
-          endDate: payload.endDate ?? existing.endDate,
-          synced: false,
-          pendingDelete: existing.pendingDelete,
-          isLocalOnly: existing.isLocalOnly,
-        );
-        updatedLocal.program.value = existing.program.value;
-        updatedLocal.completedExercises.addAll(existing.completedExercises);
-        await local.upsert(updatedLocal);
-        return updatedLocal;
-      }
+
+    final updated = await remote.update(id, payload);
+    if (existing != null) {
+      updated.program.value ??= existing.program.value;
+      updated.completedExercises.addAll(existing.completedExercises);
     }
-    return null;
+    await local.upsert(updated);
+    return updated;
   }
 
   Future<void> delete(int id) async {

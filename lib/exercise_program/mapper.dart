@@ -12,60 +12,85 @@ class ExerciseProgramMapper {
   ExerciseProgramMapper({required this.isar});
 
   Future<ExerciseProgram> fromDto(ExerciseProgramDTO dto) async {
-    final model = ExerciseProgram(
-      id: dto.id,
-      userId: dto.userId,
-      name: dto.name,
-      description: dto.description,
-    );
+    late ExerciseProgram model;
 
-    final programExercises = dto.exercises
-        .map(
-          (e) => ProgramExercise(
-            id: e.id ?? Isar.autoIncrement,
-            exerciseId: e.exerciseId,
-            order: e.order,
-            sets: e.sets,
-            reps: e.reps,
-            duration: e.duration,
-            restDuration: e.restDuration,
-          ),
-        )
-        .toList();
+    await isar.writeTxn(() async {
+      model = ExerciseProgram(
+        id: dto.id,
+        userId: dto.userId,
+        name: dto.name,
+        description: dto.description,
+      );
 
-    model.difficultyLevel.value =
-        await isar.difficultyLevels.get(dto.difficultyLevelId);
-    if (dto.subscriptionId != null) {
-      model.subscription.value =
-          await isar.subscriptions.get(dto.subscriptionId!);
-    }
+      // сначала сохраняем модель — иначе она не attached
+      await isar.exercisePrograms.put(model);
 
-    final goals = await isar.fitnessGoals
-        .where()
-        .anyOf(dto.fitnessGoalIds, (q, id) => q.idEqualTo(id))
-        .findAll();
-    model.fitnessGoals.addAll(goals);
+      final programExercises = dto.exercises.map((e) {
+        return ProgramExercise(
+          id: e.id!,
+          exerciseId: e.exerciseId,
+          order: e.order,
+          sets: e.sets,
+          reps: e.reps,
+          duration: e.duration,
+          restDuration: e.restDuration,
+        );
+      }).toList();
 
-    final exerciseIds = dto.exercises.map((e) => e.exerciseId).toList();
-    final exercises = await isar.exercises
-        .where()
-        .anyOf(exerciseIds, (q, id) => q.idEqualTo(id))
-        .findAll();
-    for (final pe in programExercises) {
-      Exercise? exerciseMatch;
-      for (final ex in exercises) {
-        if (ex.id == pe.exerciseId) {
-          exerciseMatch = ex;
-          break;
-        }
+      await isar.programExercises.putAll(programExercises);
+
+      // -------- LINKS --------
+
+      // difficulty
+      model.difficultyLevel.value = await isar.difficultyLevels.get(
+        dto.difficultyLevelId,
+      );
+
+      // subscription
+      if (dto.subscriptionId != null) {
+        model.subscription.value = await isar.subscriptions.get(
+          dto.subscriptionId!,
+        );
       }
-      if (exerciseMatch != null) {
+
+      // goals
+      final goals = await isar.fitnessGoals
+          .where()
+          .anyOf(dto.fitnessGoalIds, (q, id) => q.idEqualTo(id))
+          .findAll();
+
+      model.fitnessGoals.addAll(goals);
+
+      // exercises
+      final exerciseIds = dto.exercises.map((e) => e.exerciseId).toList();
+
+      final exercises = await isar.exercises
+          .where()
+          .anyOf(exerciseIds, (q, id) => q.idEqualTo(id))
+          .findAll();
+
+      for (final pe in programExercises) {
+        final exerciseMatch = exercises.firstWhere(
+          (ex) => ex.id == pe.exerciseId,
+        );
         pe.exercise.value = exerciseMatch;
+        pe.program.value = model;
       }
-      pe.program.value = model;
-    }
 
-    model.programExercises.addAll(programExercises);
+      model.programExercises.addAll(programExercises);
+
+      // -------- SAVE LINKS --------
+
+      await model.difficultyLevel.save();
+      await model.subscription.save();
+      await model.fitnessGoals.save();
+      await model.programExercises.save();
+
+      for (final pe in programExercises) {
+        await pe.exercise.save();
+        await pe.program.save();
+      }
+    });
 
     return model;
   }
@@ -79,14 +104,15 @@ class ExerciseProgramMapper {
     final programExercises = model.programExercises
         .map(
           (e) => ProgramExerciseDTO(
-                id: e.id,
-                exerciseId: e.exerciseId,
-                order: e.order,
-                sets: e.sets,
-                reps: e.reps,
-                duration: e.duration,
-                restDuration: e.restDuration,
-              ))
+            id: e.id,
+            exerciseId: e.exerciseId,
+            order: e.order,
+            sets: e.sets,
+            reps: e.reps,
+            duration: e.duration,
+            restDuration: e.restDuration,
+          ),
+        )
         .toList();
 
     return ExerciseProgramDTO(
@@ -96,8 +122,9 @@ class ExerciseProgramMapper {
       description: model.description,
       difficultyLevelId: model.difficultyLevel.value?.id ?? 0,
       subscriptionId: model.subscription.value?.id,
-      fitnessGoalIds:
-          model.fitnessGoals.map((goal) => goal.id).toList(growable: false),
+      fitnessGoalIds: model.fitnessGoals
+          .map((goal) => goal.id)
+          .toList(growable: false),
       exercises: programExercises,
     );
   }

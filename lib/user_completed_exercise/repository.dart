@@ -32,65 +32,30 @@ class UserCompletedExerciseRepository {
     }
   }
 
-  Future<UserCompletedExercise> create(UserCompletedExercisePayloadDTO payload) async {
-    try {
+  Future<UserCompletedExercise> create(
+    UserCompletedExercisePayloadDTO payload,
+  ) async {
       final created = await remote.create(payload);
       final merged = _mergeWithPayload(created, payload);
       await local.upsert(merged);
+      print('merged create');
+      print(merged.programExerciseId);
+      print(merged.programExercise);
       return merged;
-    } catch (e, stackTrace) {
-      print('UserCompletedExerciseRepository.create failed: $e\n$stackTrace');
-      final fallback = UserCompletedExercise(
-        id: Isar.autoIncrement,
-        completedProgramId: payload.completedProgramId,
-        programExerciseId: payload.programExerciseId,
-        exerciseId: payload.exerciseId,
-        sets: payload.sets,
-        reps: payload.reps,
-        duration: payload.duration,
-        weight: payload.weight,
-        restDuration: payload.restDuration,
-        synced: false,
-        pendingDelete: false,
-        isLocalOnly: true,
-      );
-      await local.upsert(fallback);
-      return fallback;
-    }
   }
 
-  Future<UserCompletedExercise?> update(int id, UserCompletedExercisePayloadDTO payload) async {
+  Future<UserCompletedExercise?> update(
+    int id,
+    UserCompletedExercisePayloadDTO payload,
+  ) async {
     final existing = await local.getById(id);
-    try {
-      final updated = await remote.update(id, payload);
-      final merged = _mergeWithPayload(updated, payload, existing: existing);
-      await local.upsert(merged);
-      return merged;
-    } catch (e, stackTrace) {
-      print('UserCompletedExerciseRepository.update failed: $e\n$stackTrace');
-      if (existing != null) {
-        final updatedLocal = UserCompletedExercise(
-          id: existing.id,
-          completedProgramId: existing.completedProgramId,
-          programExerciseId:
-              payload.programExerciseId ?? existing.programExerciseId,
-          exerciseId: payload.exerciseId ?? existing.exerciseId,
-          sets: payload.sets,
-          reps: payload.reps ?? existing.reps,
-          duration: payload.duration ?? existing.duration,
-          weight: payload.weight ?? existing.weight,
-          restDuration: payload.restDuration ?? existing.restDuration,
-          synced: false,
-          pendingDelete: existing.pendingDelete,
-          isLocalOnly: existing.isLocalOnly,
-        );
-        updatedLocal.programExercise.value = existing.programExercise.value;
-        updatedLocal.exercise.value = existing.exercise.value;
-        await local.upsert(updatedLocal);
-        return updatedLocal;
-      }
-    }
-    return null;
+    final updated = await remote.update(id, payload);
+    final merged = _mergeWithPayload(updated, payload, existing: existing);
+    await local.upsert(merged);
+    print('merged update');
+    print(merged.programExerciseId);
+    print(merged.programExercise);
+    return merged;
   }
 
   Future<void> delete(int id) async {

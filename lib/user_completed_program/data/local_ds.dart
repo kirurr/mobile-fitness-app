@@ -88,31 +88,40 @@ class UserCompletedProgramLocalDataSource {
         )
         .toList();
 
-    await db.writeTxn(() async {
-      await _completedExercises
+    if (preparedExercises.isNotEmpty) {
+      await db.writeTxn(() async {
+        await _completedExercises
+            .filter()
+            .completedProgramIdEqualTo(programId)
+            .deleteAll();
+        await _completedExercises.putAll(preparedExercises);
+      });
+
+      final managedProgram = await _collection.get(programId);
+      if (managedProgram == null) return;
+
+      final savedExercises = await _completedExercises
           .filter()
           .completedProgramIdEqualTo(programId)
-          .deleteAll();
-      await _completedExercises.putAll(preparedExercises);
-    });
+          .findAll();
 
-    final managedProgram = await _collection.get(programId);
-    if (managedProgram == null) return;
+      managedProgram.program.value = item.program.value;
+      managedProgram.completedExercises
+        ..clear()
+        ..addAll(savedExercises);
 
-    final savedExercises = await _completedExercises
-        .filter()
-        .completedProgramIdEqualTo(programId)
-        .findAll();
-
-    managedProgram.program.value = item.program.value;
-    managedProgram.completedExercises
-      ..clear()
-      ..addAll(savedExercises);
-
-    await db.writeTxn(() async {
-      await managedProgram.program.save();
-      await managedProgram.completedExercises.save();
-    });
+      await db.writeTxn(() async {
+        await managedProgram.program.save();
+        await managedProgram.completedExercises.save();
+      });
+    } else {
+      final managedProgram = await _collection.get(programId);
+      if (managedProgram == null) return;
+      managedProgram.program.value = item.program.value;
+      await db.writeTxn(() async {
+        await managedProgram.program.save();
+      });
+    }
   }
 
   Future<void> attachCompletedExercises(int programId) async {
@@ -122,6 +131,8 @@ class UserCompletedProgramLocalDataSource {
         .filter()
         .completedProgramIdEqualTo(programId)
         .findAll();
+    print('attachCompletedExercises: found ${exercises.length} exercises');
+    print(exercises.toString());
     program.completedExercises
       ..clear()
       ..addAll(exercises);

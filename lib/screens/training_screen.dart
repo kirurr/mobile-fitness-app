@@ -433,7 +433,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (localProgram != null) {
       await _linkCompletedExercisesToProgramExercises(
         deps,
-        localProgram,
+        updated,
         completedExercises,
       );
     }
