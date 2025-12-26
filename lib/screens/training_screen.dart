@@ -36,6 +36,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   bool _endingProgram = false;
   bool _startingProgram = false;
   bool _startingCustomProgram = false;
+  bool _savingProgram = false;
   String? _error;
 
   int? _selectedExerciseId;
@@ -54,6 +55,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
   final TextEditingController _weightController = TextEditingController(
     text: '0',
   );
+  final TextEditingController _programNameController = TextEditingController();
+  final TextEditingController _startDateController = TextEditingController();
+  final TextEditingController _endDateController = TextEditingController();
 
   @override
   void initState() {
@@ -68,6 +72,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
     _durationController.dispose();
     _restController.dispose();
     _weightController.dispose();
+    _programNameController.dispose();
+    _startDateController.dispose();
+    _endDateController.dispose();
     for (final entry in _editControllers.values) {
       entry.dispose();
     }
@@ -153,6 +160,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
         _editControllers.clear();
         _loading = false;
       });
+      _syncProgramMetaEditors(
+        program: selectedProgram,
+        completedProgram: completedProgram,
+      );
     } catch (e, stackTrace) {
       print('TrainingScreen._bootstrap failed: $e\n$stackTrace');
       if (!mounted) return;
@@ -178,6 +189,143 @@ class _TrainingScreenState extends State<TrainingScreen> {
       }
     }
     return null;
+  }
+
+  void _syncProgramMetaEditors({
+    ExerciseProgram? program,
+    UserCompletedProgram? completedProgram,
+  }) {
+    _programNameController.text = program?.name ?? '';
+    _startDateController.text = completedProgram?.startDate ?? '';
+    _endDateController.text = completedProgram?.endDate ?? '';
+  }
+
+  String? _parseDateInput(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+    final parsed = DateTime.tryParse(trimmed);
+    if (parsed == null) return null;
+    return parsed.toUtc().toIso8601String();
+  }
+
+  Future<void> _saveProgramMeta() async {
+    final program = _program;
+    final completedProgram = _completedProgram;
+    if (program == null || completedProgram == null) {
+      return;
+    }
+
+    final name = _programNameController.text.trim();
+    if (name.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Program name is required')),
+      );
+      return;
+    }
+
+    final startIso = _parseDateInput(_startDateController.text);
+    if (startIso == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid start date')),
+      );
+      return;
+    }
+    final endText = _endDateController.text.trim();
+    final endIso = endText.isEmpty ? null : _parseDateInput(endText);
+    if (endText.isNotEmpty && endIso == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid end date')),
+      );
+      return;
+    }
+
+    final difficultyId =
+        program.difficultyLevel.value?.id ??
+        _userData?.trainingLevel.value?.id;
+    if (difficultyId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Difficulty level is required')),
+      );
+      return;
+    }
+
+    setState(() {
+      _savingProgram = true;
+    });
+
+    final deps = DependencyScope.of(context);
+    try {
+      final programPayload = ExerciseProgramPayloadDTO(
+        name: name,
+        description: program.description,
+        difficultyLevelId: difficultyId,
+        subscriptionId: program.subscription.value?.id,
+        userId: program.userId,
+        fitnessGoalIds: program.fitnessGoals.map((g) => g.id).toList(),
+        exercises: program.programExercises.map((pe) {
+          return ProgramExerciseDTO(
+            exerciseId: pe.exerciseId,
+            order: pe.order,
+            sets: pe.sets,
+            reps: pe.reps,
+            duration: pe.duration,
+            restDuration: pe.restDuration,
+          );
+        }).toList(),
+      );
+      final updatedProgram = await deps.exerciseProgramRepository.updateProgram(
+        program.id,
+        programPayload,
+      );
+
+      final completedPayload = UserCompletedProgramPayloadDTO(
+        userId: completedProgram.userId,
+        programId: completedProgram.programId,
+        startDate: startIso,
+        endDate: endIso,
+      );
+      final updatedCompleted = await deps.userCompletedProgramRepository.update(
+        completedProgram.id,
+        completedPayload,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _program = updatedProgram;
+        _completedProgram =
+            updatedCompleted ??
+            UserCompletedProgram(
+              id: completedProgram.id,
+              userId: completedProgram.userId,
+              programId: completedProgram.programId,
+              startDate: startIso,
+              endDate: endIso,
+            );
+      });
+      _syncProgramMetaEditors(
+        program: updatedProgram,
+        completedProgram: _completedProgram,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Program updated')),
+      );
+    } catch (e, stackTrace) {
+      print('TrainingScreen._saveProgramMeta failed: $e\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update program: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingProgram = false;
+        });
+      }
+    }
   }
 
   void _prefillFromExisting(int? exerciseId) {
@@ -375,6 +523,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           endDate: payload.endDate,
         );
       });
+      _syncProgramMetaEditors(
+        program: _program,
+        completedProgram: _completedProgram,
+      );
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Workout finished')));
@@ -497,6 +649,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _programInfo(),
+                  const SizedBox(height: 16),
+                  _programMetaEditor(),
                   StreamBuilder<List<UserCompletedExercise>>(
                     stream: DependencyScope.of(context)
                         .userCompletedExerciseRepository
@@ -733,6 +887,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
         _selectedExerciseId = null;
         _editControllers.clear();
       });
+      _syncProgramMetaEditors(
+        program: program,
+        completedProgram: createdCompletedProgram,
+      );
     } catch (e, stackTrace) {
       print('TrainingScreen._startSelectedProgram failed: $e\n$stackTrace');
       if (!mounted) return;
@@ -799,6 +957,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
         _selectedExerciseId = null;
         _editControllers.clear();
       });
+      _syncProgramMetaEditors(
+        program: createdProgram,
+        completedProgram: createdCompletedProgram,
+      );
     } catch (e, stackTrace) {
       print('TrainingScreen._startCustomProgram failed: $e\n$stackTrace');
       if (!mounted) return;
@@ -1007,6 +1169,59 @@ class _TrainingScreenState extends State<TrainingScreen> {
             Text('Difficulty: $difficulty'),
             Text('Goal: $goalText'),
             Text('Exercises: $exerciseCount'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _programMetaEditor() {
+    final endDateLabel = _completedProgram?.endDate == null
+        ? 'End date (optional)'
+        : 'End date';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Edit Program',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _programNameController,
+              decoration: const InputDecoration(labelText: 'Program name'),
+            ),
+            TextField(
+              controller: _startDateController,
+              decoration: const InputDecoration(
+                labelText: 'Start date',
+                hintText: 'YYYY-MM-DDTHH:MM:SSZ',
+              ),
+            ),
+            TextField(
+              controller: _endDateController,
+              decoration: InputDecoration(
+                labelText: endDateLabel,
+                hintText: 'YYYY-MM-DDTHH:MM:SSZ',
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _savingProgram ? null : _saveProgramMeta,
+                child: _savingProgram
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save Changes'),
+              ),
+            ),
           ],
         ),
       ),

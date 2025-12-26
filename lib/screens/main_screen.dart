@@ -7,6 +7,7 @@ import 'package:mobile_fitness_app/screens/programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
 import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
+import 'package:mobile_fitness_app/screens/planned_programs_screen.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -265,6 +266,20 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ),
                   child: const Text('Start Training'),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PlannedProgramsScreen(),
+                    ),
+                  ),
+                  child: const Text('Planned Programs'),
                 ),
               ),
             ),
