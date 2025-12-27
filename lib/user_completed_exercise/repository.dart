@@ -2,6 +2,8 @@ import 'package:mobile_fitness_app/user_completed_exercise/data/local_ds.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/data/remote_ds.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/dto.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
+import 'dart:async';
+import 'package:mobile_fitness_app/user_completed_program/model.dart';
 
 class UserCompletedExerciseRepository {
   final UserCompletedExerciseLocalDataSource local;
@@ -32,29 +34,82 @@ class UserCompletedExerciseRepository {
   }
 
   Future<UserCompletedExercise> create(
-    UserCompletedExercisePayloadDTO payload,
-  ) async {
-      final created = await remote.create(payload);
-      final merged = _mergeWithPayload(created, payload);
-      await local.upsert(merged);
-      print('merged create');
-      print(merged.programExerciseId);
-      print(merged.programExercise);
-      return merged;
+    UserCompletedExercisePayloadDTO payload, {
+    int? id,
+    bool triggerSync = true,
+  }) async {
+    final localId = id ?? _generateLocalId();
+    final created = UserCompletedExercise(
+      id: localId,
+      completedProgramId: payload.completedProgramId,
+      programExerciseId: payload.programExerciseId,
+      exerciseId: payload.exerciseId,
+      sets: payload.sets,
+      reps: payload.reps,
+      duration: payload.duration,
+      weight: payload.weight,
+      restDuration: payload.restDuration,
+      synced: false,
+      pendingDelete: false,
+      isLocalOnly: true,
+    );
+    await local.upsert(created);
+    if (triggerSync) {
+      unawaited(sync());
+    }
+    return created;
   }
 
   Future<UserCompletedExercise?> update(
     int id,
-    UserCompletedExercisePayloadDTO payload,
-  ) async {
+    UserCompletedExercisePayloadDTO payload, {
+    bool triggerSync = true,
+  }) async {
     final existing = await local.getById(id);
-    final updated = await remote.update(id, payload);
-    final merged = _mergeWithPayload(updated, payload, existing: existing);
-    await local.upsert(merged);
-    print('merged update');
-    print(merged.programExerciseId);
-    print(merged.programExercise);
-    return merged;
+    if (existing == null) {
+      final created = UserCompletedExercise(
+        id: id,
+        completedProgramId: payload.completedProgramId,
+        programExerciseId: payload.programExerciseId,
+        exerciseId: payload.exerciseId,
+        sets: payload.sets,
+        reps: payload.reps,
+        duration: payload.duration,
+        weight: payload.weight,
+        restDuration: payload.restDuration,
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      await local.upsert(created);
+      if (triggerSync) {
+        unawaited(sync());
+      }
+      return created;
+    }
+
+    final updatedLocal = UserCompletedExercise(
+      id: existing.id,
+      completedProgramId: payload.completedProgramId,
+      programExerciseId:
+          payload.programExerciseId ?? existing.programExerciseId,
+      exerciseId: payload.exerciseId ?? existing.exerciseId,
+      sets: payload.sets,
+      reps: payload.reps ?? existing.reps,
+      duration: payload.duration ?? existing.duration,
+      weight: payload.weight ?? existing.weight,
+      restDuration: payload.restDuration ?? existing.restDuration,
+      synced: false,
+      pendingDelete: existing.pendingDelete,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    updatedLocal.programExercise.value = existing.programExercise.value;
+    updatedLocal.exercise.value = existing.exercise.value;
+    await local.upsert(updatedLocal);
+    if (triggerSync) {
+      unawaited(sync());
+    }
+    return updatedLocal;
   }
 
   Future<void> delete(int id) async {
@@ -115,6 +170,9 @@ class UserCompletedExerciseRepository {
     final unsynced = await local.getUnsynced();
     for (final item in unsynced) {
       if (item.pendingDelete) continue;
+      if (!await _isCompletedProgramSynced(item.completedProgramId)) {
+        continue;
+      }
       final payload = UserCompletedExercisePayloadDTO(
         completedProgramId: item.completedProgramId,
         programExerciseId: item.programExerciseId,
@@ -174,5 +232,15 @@ class UserCompletedExerciseRepository {
     merged.programExercise.value =
         remoteItem.programExercise.value ?? existing?.programExercise.value;
     return merged;
+  }
+
+  int _generateLocalId() {
+    return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  Future<bool> _isCompletedProgramSynced(int completedProgramId) async {
+    final program = await local.db.userCompletedPrograms.get(completedProgramId);
+    if (program == null) return true;
+    return program.synced && !program.isLocalOnly;
   }
 }

@@ -2,6 +2,7 @@ import 'package:mobile_fitness_app/user_completed_program/data/local_ds.dart';
 import 'package:mobile_fitness_app/user_completed_program/data/remote_ds.dart';
 import 'package:mobile_fitness_app/user_completed_program/dto.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
+import 'dart:async';
 
 class UserCompletedProgramRepository {
   final UserCompletedProgramLocalDataSource local;
@@ -35,29 +36,82 @@ class UserCompletedProgramRepository {
     return local.attachCompletedExercises(programId);
   }
 
-  Future<UserCompletedProgram> create(UserCompletedProgramPayloadDTO payload) async {
-      final created = await remote.create(payload);
-      await local.upsert(created);
-      return created;
+  Future<UserCompletedProgram> create(
+    UserCompletedProgramPayloadDTO payload, {
+    int? id,
+    bool triggerSync = true,
+  }) async {
+    final localId = id ?? _generateLocalId();
+    final startDate = _normalizeStartDate(payload.startDate);
+    final created = UserCompletedProgram(
+      id: localId,
+      userId: payload.userId,
+      programId: payload.programId,
+      startDate: startDate,
+      endDate: _normalizeEndDate(payload.endDate),
+      synced: false,
+      pendingDelete: false,
+      isLocalOnly: true,
+    );
+    await local.upsert(created);
+    if (triggerSync) {
+      unawaited(sync());
+    }
+    return created;
   }
 
-  Future<UserCompletedProgram?> update(int id, UserCompletedProgramPayloadDTO payload) async {
+  Future<UserCompletedProgram?> update(
+    int id,
+    UserCompletedProgramPayloadDTO payload, {
+    bool triggerSync = true,
+  }) async {
     final existing = await local.getById(id);
-
-    final updated = await remote.update(id, payload);
-    if (existing != null) {
-      updated.program.value ??= existing.program.value;
-      updated.completedExercises.addAll(existing.completedExercises);
+    if (existing == null) {
+      final startDate = _normalizeStartDate(payload.startDate);
+      final created = UserCompletedProgram(
+        id: id,
+        userId: payload.userId,
+        programId: payload.programId,
+        startDate: startDate,
+        endDate: _normalizeEndDate(payload.endDate),
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      await local.upsert(created);
+      if (triggerSync) {
+        unawaited(sync());
+      }
+      return created;
     }
-    final completedExercisesOverride =
-        updated.completedExercises.isEmpty && existing != null
-            ? existing.completedExercises.toList()
-            : null;
-    await local.upsert(
-      updated,
-      completedExercisesOverride: completedExercisesOverride,
+
+    final updatedLocal = UserCompletedProgram(
+      id: existing.id,
+      userId: existing.userId,
+      programId: payload.programId,
+      startDate: _normalizeStartDate(
+        payload.startDate,
+        fallback: existing.startDate,
+      ),
+      endDate: _normalizeEndDate(
+        payload.endDate,
+        fallback: existing.endDate,
+      ),
+      synced: false,
+      pendingDelete: existing.pendingDelete,
+      isLocalOnly: existing.isLocalOnly,
     );
-    return updated;
+    updatedLocal.program.value = existing.program.value;
+    updatedLocal.completedExercises.addAll(existing.completedExercises);
+
+    await local.upsert(
+      updatedLocal,
+      completedExercisesOverride: existing.completedExercises.toList(),
+    );
+    if (triggerSync) {
+      unawaited(sync());
+    }
+    return updatedLocal;
   }
 
   Future<void> delete(int id) async {
@@ -88,6 +142,7 @@ class UserCompletedProgramRepository {
     final pendingDeletes = await local.getPendingDeletes();
     for (final item in pendingDeletes) {
       final payload = UserCompletedProgramPayloadDTO(
+        id: item.id,
         userId: item.userId,
         programId: item.programId,
         startDate: item.startDate,
@@ -111,6 +166,7 @@ class UserCompletedProgramRepository {
     for (final item in unsynced) {
       if (item.pendingDelete) continue;
       final payload = UserCompletedProgramPayloadDTO(
+        id: item.id,
         userId: item.userId,
         programId: item.programId,
         startDate: item.startDate,
@@ -119,33 +175,69 @@ class UserCompletedProgramRepository {
       try {
         if (item.isLocalOnly) {
           final created = await remote.create(payload);
-          created.program.value ??= item.program.value;
-          created.completedExercises.addAll(item.completedExercises);
+          final merged = _mergeRemoteWithLocal(created, item);
           await local.deleteById(item.id);
-          final completedExercisesOverride =
-              created.completedExercises.isEmpty
-                  ? item.completedExercises.toList()
-                  : null;
-          await local.upsert(
-            created,
-            completedExercisesOverride: completedExercisesOverride,
-          );
+          await local.upsert(merged);
         } else {
           final updated = await remote.update(item.id, payload);
-          updated.program.value ??= item.program.value;
-          updated.completedExercises.addAll(item.completedExercises);
-          final completedExercisesOverride =
-              updated.completedExercises.isEmpty
-                  ? item.completedExercises.toList()
-                  : null;
-          await local.upsert(
-            updated,
-            completedExercisesOverride: completedExercisesOverride,
-          );
+          final merged = _mergeRemoteWithLocal(updated, item);
+          await local.upsert(merged);
         }
       } catch (_) {
         continue;
       }
     }
+  }
+
+  int _generateLocalId() {
+    return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  String _nowIso() {
+    return DateTime.now().toUtc().toIso8601String();
+  }
+
+  String _normalizeStartDate(String? startDate, {String? fallback}) {
+    final trimmed = startDate?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return fallback ?? _nowIso();
+    }
+    return trimmed;
+  }
+
+  String? _normalizeEndDate(String? endDate, {String? fallback}) {
+    final trimmed = endDate?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return fallback;
+    }
+    return trimmed;
+  }
+
+  UserCompletedProgram _mergeRemoteWithLocal(
+    UserCompletedProgram remoteItem,
+    UserCompletedProgram localItem,
+  ) {
+    final merged = UserCompletedProgram(
+      id: remoteItem.id,
+      userId: remoteItem.userId,
+      programId: remoteItem.programId,
+      startDate: _normalizeStartDate(
+        remoteItem.startDate,
+        fallback: localItem.startDate,
+      ),
+      endDate: _normalizeEndDate(
+        remoteItem.endDate,
+        fallback: localItem.endDate,
+      ),
+      synced: remoteItem.synced,
+      pendingDelete: remoteItem.pendingDelete,
+      isLocalOnly: remoteItem.isLocalOnly,
+    );
+    merged.program.value = remoteItem.program.value ?? localItem.program.value;
+    final exercises = remoteItem.completedExercises.isNotEmpty
+        ? remoteItem.completedExercises
+        : localItem.completedExercises;
+    merged.completedExercises.addAll(exercises);
+    return merged;
   }
 }

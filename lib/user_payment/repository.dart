@@ -1,8 +1,8 @@
-import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/user_payment/data/local_ds.dart';
 import 'package:mobile_fitness_app/user_payment/data/remote_ds.dart';
 import 'package:mobile_fitness_app/user_payment/dto.dart';
 import 'package:mobile_fitness_app/user_payment/model.dart';
+import 'dart:async';
 
 class UserPaymentRepository {
   final UserPaymentLocalDataSource local;
@@ -31,42 +31,51 @@ class UserPaymentRepository {
     }
   }
 
-  Future<void> create(UserPaymentPayloadDTO payload) async {
-    try {
-      final created = await remote.create(payload);
-      await local.upsert(created);
-    } catch (e) {
-      final fallback = UserPayment(
-        id: Isar.autoIncrement,
-        userId: payload.userId,
-        createdAt: DateTime.now().toIso8601String(),
-        amount: payload.amount,
-        synced: false,
-        isLocalOnly: true,
-      );
-      await local.upsert(fallback);
-    }
+  Future<void> create(
+    UserPaymentPayloadDTO payload, {
+    int? id,
+  }) async {
+    final created = UserPayment(
+      id: id ?? _generateLocalId(),
+      userId: payload.userId,
+      createdAt: _nowIso(),
+      amount: payload.amount,
+      synced: false,
+      pendingDelete: false,
+      isLocalOnly: true,
+    );
+    await local.upsert(created);
+    unawaited(sync());
   }
 
   Future<void> update(int id, UserPaymentPayloadDTO payload) async {
-    try {
-      final updated = await remote.update(id, payload);
-      await local.upsert(updated);
-    } catch (e) {
-      final existing = await local.getById(id);
-      if (existing != null) {
-        final updatedLocal = UserPayment(
-          id: existing.id,
-          userId: existing.userId,
-          createdAt: existing.createdAt,
-          amount: payload.amount,
-          synced: false,
-          pendingDelete: existing.pendingDelete,
-          isLocalOnly: existing.isLocalOnly,
-        );
-        await local.upsert(updatedLocal);
-      }
+    final existing = await local.getById(id);
+    if (existing == null) {
+      final created = UserPayment(
+        id: id,
+        userId: payload.userId,
+        createdAt: _nowIso(),
+        amount: payload.amount,
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      await local.upsert(created);
+      unawaited(sync());
+      return;
     }
+
+    final updatedLocal = UserPayment(
+      id: existing.id,
+      userId: existing.userId,
+      createdAt: existing.createdAt,
+      amount: payload.amount,
+      synced: false,
+      pendingDelete: existing.pendingDelete,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    await local.upsert(updatedLocal);
+    unawaited(sync());
   }
 
   Future<void> delete(int id) async {
@@ -158,5 +167,13 @@ class UserPaymentRepository {
         continue;
       }
     }
+  }
+
+  int _generateLocalId() {
+    return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  String _nowIso() {
+    return DateTime.now().toUtc().toIso8601String();
   }
 }

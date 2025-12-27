@@ -50,12 +50,14 @@ class UserCompletedProgramDTO {
 }
 
 class UserCompletedProgramPayloadDTO {
+  final int? id;
   final int userId;
   final int programId;
   final String? startDate;
   final String? endDate;
 
   const UserCompletedProgramPayloadDTO({
+    this.id,
     required this.userId,
     required this.programId,
     this.startDate,
@@ -64,6 +66,7 @@ class UserCompletedProgramPayloadDTO {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'userId': userId,
       'programId': programId,
       'startDate': startDate,

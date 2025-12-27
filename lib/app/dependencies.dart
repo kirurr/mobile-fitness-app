@@ -28,6 +28,7 @@ import 'package:mobile_fitness_app/user_completed_exercise/assembler.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/repository.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/assembler.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/repository.dart';
+import 'package:mobile_fitness_app/app/sync_service.dart';
 
 class Dependencies {
   final Isar db;
@@ -44,6 +45,7 @@ class Dependencies {
   final UserCompletedProgramRepository userCompletedProgramRepository;
   final UserCompletedExerciseRepository userCompletedExerciseRepository;
   final PlannedExerciseProgramRepository plannedExerciseProgramRepository;
+  final SyncService syncService;
 
   Dependencies._({
     required this.db,
@@ -60,6 +62,7 @@ class Dependencies {
     required this.userCompletedProgramRepository,
     required this.userCompletedExerciseRepository,
     required this.plannedExerciseProgramRepository,
+    required this.syncService,
   });
 
   static Future<Dependencies> init() async {
@@ -123,6 +126,14 @@ class Dependencies {
           api: ApiClient.instance,
         );
 
+    final syncService = SyncService(
+      userSubscriptionRepository: userSubscriptionRepository,
+      userPaymentRepository: userPaymentRepository,
+      plannedExerciseProgramRepository: plannedExerciseProgramRepository,
+      userCompletedProgramRepository: userCompletedProgramRepository,
+      userCompletedExerciseRepository: userCompletedExerciseRepository,
+    );
+
     return Dependencies._(
       db: isarService,
       fitnessGoalRepository: fitnessGoalRepository,
@@ -138,6 +149,7 @@ class Dependencies {
       userCompletedProgramRepository: userCompletedProgramRepository,
       userCompletedExerciseRepository: userCompletedExerciseRepository,
       plannedExerciseProgramRepository: plannedExerciseProgramRepository,
+      syncService: syncService,
     );
   }
 }

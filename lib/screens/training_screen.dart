@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/app/dependencies.dart';
@@ -277,7 +278,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
           );
         }).toList(),
       );
-      final updatedProgram = await deps.exerciseProgramRepository.updateProgram(
+      final updatedProgram =
+          await deps.exerciseProgramRepository.updateLocalProgram(
         program.id,
         programPayload,
       );
@@ -291,6 +293,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       final updatedCompleted = await deps.userCompletedProgramRepository.update(
         completedProgram.id,
         completedPayload,
+        triggerSync: false,
       );
 
       if (!mounted) return;
@@ -419,9 +422,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
       final programRepo =
           DependencyScope.of(context).userCompletedProgramRepository;
       if (existing.id == -1) {
-        await repo.create(payload);
+        await repo.create(payload, triggerSync: false);
       } else {
-        await repo.update(existing.id, payload);
+        await repo.update(existing.id, payload, triggerSync: false);
       }
       await programRepo.refreshLocalLinksForProgram(completedProgram.id);
 
@@ -464,7 +467,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final deps = DependencyScope.of(context);
     final repo = deps.userCompletedExerciseRepository;
     final programRepo = deps.userCompletedProgramRepository;
-    await repo.update(item.id, payload);
+    await repo.update(item.id, payload, triggerSync: false);
     await programRepo.refreshLocalLinksForProgram(item.completedProgramId);
     final editors = _editControllers[item.id];
     if (editors != null) {
@@ -510,7 +513,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
       await deps.userCompletedProgramRepository.update(
         completedProgram.id,
         payload,
+        triggerSync: false,
       );
+      unawaited(deps.syncService.syncAll());
       print('TrainingScreen._finishProgram: completed program updated');
 
       if (!mounted) return;
@@ -609,7 +614,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
 
 
-    final updated = await deps.exerciseProgramRepository.updateProgram(
+    final updated = await deps.exerciseProgramRepository.updateLocalProgram(
       _program!.id,
       payload,
     );
@@ -855,7 +860,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       );
 
       final createdCompletedProgram = await deps.userCompletedProgramRepository
-          .create(completedProgramPayload);
+          .create(completedProgramPayload, triggerSync: false);
 
       final completedExerciseRepo = deps.userCompletedExerciseRepository;
       for (final programExercise in program.programExercises) {
@@ -869,7 +874,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           weight: null,
           restDuration: programExercise.restDuration,
         );
-        await completedExerciseRepo.create(payload);
+        await completedExerciseRepo.create(payload, triggerSync: false);
       }
 
       await deps.userCompletedProgramRepository.refreshLocalLinksForProgram(
@@ -935,7 +940,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       );
 
       final createdProgram =
-          await deps.exerciseProgramRepository.createProgram(programPayload);
+          await deps.exerciseProgramRepository.createLocalProgram(programPayload);
 
       final nowIso = DateTime.now().toUtc().toIso8601String();
       final completedProgramPayload = UserCompletedProgramPayloadDTO(
@@ -946,7 +951,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       );
 
       final createdCompletedProgram = await deps.userCompletedProgramRepository
-          .create(completedProgramPayload);
+          .create(completedProgramPayload, triggerSync: false);
 
       if (!mounted) return;
       setState(() {
@@ -1384,7 +1389,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         weight: item.weight,
         restDuration: item.restDuration,
       );
-      await repo.update(item.id, payload);
+      await repo.update(item.id, payload, triggerSync: false);
     }
   }
 
@@ -1438,7 +1443,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       final deps = DependencyScope.of(context);
       final repo = deps.userCompletedExerciseRepository;
       final programRepo = deps.userCompletedProgramRepository;
-      await repo.update(item.id, payload);
+      await repo.update(item.id, payload, triggerSync: false);
       await programRepo.refreshLocalLinksForProgram(item.completedProgramId);
       if (!mounted) return;
       ScaffoldMessenger.of(

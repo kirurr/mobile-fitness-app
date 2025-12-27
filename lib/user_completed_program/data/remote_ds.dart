@@ -94,6 +94,7 @@ class UserCompletedProgramRemoteDataSource {
 
   Map<String, dynamic> _withIsoDates(UserCompletedProgramPayloadDTO payload) {
     return {
+      if (payload.id != null) 'id': payload.id,
       'userId': payload.userId,
       'programId': payload.programId,
       'startDate':

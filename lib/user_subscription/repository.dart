@@ -1,8 +1,9 @@
-import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/user_subscription/data/local_ds.dart';
 import 'package:mobile_fitness_app/user_subscription/data/remote_ds.dart';
 import 'package:mobile_fitness_app/user_subscription/dto.dart';
 import 'package:mobile_fitness_app/user_subscription/model.dart';
+import 'dart:async';
+import 'package:mobile_fitness_app/subscription/model.dart';
 
 class UserSubscriptionRepository {
   final UserSubscriptionLocalDataSource local;
@@ -31,13 +32,29 @@ class UserSubscriptionRepository {
     }
   }
 
-  Future<void> create(UserSubscriptionPayloadDTO payload) async {
-    try {
-      final created = await remote.create(payload);
-      await local.upsert(created);
-    } catch (e) {
-      final fallback = UserSubscription(
-        id: Isar.autoIncrement,
+  Future<void> create(
+    UserSubscriptionPayloadDTO payload, {
+    int? id,
+  }) async {
+    final created = UserSubscription(
+      id: id ?? _generateLocalId(),
+      userId: payload.userId,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      synced: false,
+      pendingDelete: false,
+      isLocalOnly: true,
+    );
+    await _attachSubscription(created, payload.subscriptionId);
+    await local.upsert(created);
+    unawaited(sync());
+  }
+
+  Future<void> update(int id, UserSubscriptionPayloadDTO payload) async {
+    final existing = await local.getById(id);
+    if (existing == null) {
+      final created = UserSubscription(
+        id: id,
         userId: payload.userId,
         startDate: payload.startDate,
         endDate: payload.endDate,
@@ -45,30 +62,28 @@ class UserSubscriptionRepository {
         pendingDelete: false,
         isLocalOnly: true,
       );
-      await local.upsert(fallback);
+      await _attachSubscription(created, payload.subscriptionId);
+      await local.upsert(created);
+      unawaited(sync());
+      return;
     }
-  }
 
-  Future<void> update(int id, UserSubscriptionPayloadDTO payload) async {
-    try {
-      final updated = await remote.update(id, payload);
-      await local.upsert(updated);
-    } catch (e) {
-      final existing = await local.getById(id);
-      if (existing != null) {
-        final updatedLocal = UserSubscription(
-          id: existing.id,
-          userId: existing.userId,
-          startDate: payload.startDate,
-          endDate: payload.endDate,
-          synced: false,
-          pendingDelete: existing.pendingDelete,
-          isLocalOnly: existing.isLocalOnly,
-        );
-        updatedLocal.subscription.value = existing.subscription.value;
-        await local.upsert(updatedLocal);
-      }
+    final updatedLocal = UserSubscription(
+      id: existing.id,
+      userId: existing.userId,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      synced: false,
+      pendingDelete: existing.pendingDelete,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    if (payload.subscriptionId == null) {
+      updatedLocal.subscription.value = existing.subscription.value;
+    } else {
+      await _attachSubscription(updatedLocal, payload.subscriptionId);
     }
+    await local.upsert(updatedLocal);
+    unawaited(sync());
   }
 
   Future<void> delete(int id) async {
@@ -140,5 +155,17 @@ class UserSubscriptionRepository {
         continue;
       }
     }
+  }
+
+  int _generateLocalId() {
+    return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  Future<void> _attachSubscription(
+    UserSubscription target,
+    int? subscriptionId,
+  ) async {
+    if (subscriptionId == null) return;
+    target.subscription.value = await local.db.subscriptions.get(subscriptionId);
   }
 }

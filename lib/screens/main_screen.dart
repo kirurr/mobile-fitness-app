@@ -114,8 +114,8 @@ class _MainScreenState extends State<MainScreen> {
 
     final userCompletedProgramRepo =
         deps.userCompletedProgramRepository;
-    final userCompletedExerciseRepo =
-        deps.userCompletedExerciseRepository;
+    final plannedExerciseProgramRepo =
+        deps.plannedExerciseProgramRepository;
 
     return Scaffold(
       appBar: AppBar(
@@ -141,6 +141,7 @@ class _MainScreenState extends State<MainScreen> {
               // await exerciseRepo.refreshExercises();
               await programRepo.refreshPrograms();
               await userCompletedProgramRepo.refreshCompletedPrograms();
+              await plannedExerciseProgramRepo.refreshPlannedPrograms();
               // await userCompletedExerciseRepo.refreshCompletedExercises();
               // await subscriptionRepo.refreshSubscriptions();
               // await userSubscriptionRepo.refreshUserSubscriptions();

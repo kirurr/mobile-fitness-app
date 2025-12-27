@@ -1,8 +1,8 @@
-import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/data/local_ds.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/data/remote_ds.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/dto.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
+import 'dart:async';
 
 class PlannedExerciseProgramRepository {
   final PlannedExerciseProgramLocalDataSource local;
@@ -32,88 +32,81 @@ class PlannedExerciseProgramRepository {
     }
   }
 
-  Future<void> create(PlannedExerciseProgramPayloadDTO payload) async {
-    try {
-      final created = await remote.create(payload);
-      created.dates
-        ..clear()
-        ..addAll(
-          payload.dates
-              .map(
-                (d) => PlannedExerciseProgramDate(
-                  id: Isar.autoIncrement,
-                  plannedExerciseProgramId: created.id,
-                  date: d,
-                )..plannedProgram.value = created,
-              )
-              .toList(),
-        );
-      await local.upsert(created, datesOverride: payload.dates);
-    } catch (e) {
-      final fallback = PlannedExerciseProgram(
-        id: Isar.autoIncrement,
+  Future<void> create(
+    PlannedExerciseProgramPayloadDTO payload, {
+    int? id,
+  }) async {
+    final programId = id ?? _generateLocalId();
+    final created = PlannedExerciseProgram(
+      id: programId,
+      programId: payload.programId,
+      synced: false,
+      pendingDelete: false,
+      isLocalOnly: true,
+    );
+    created.dates.addAll(
+      payload.dates.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final date = entry.value;
+        return PlannedExerciseProgramDate(
+          id: programId + idx + 1,
+          plannedExerciseProgramId: created.id,
+          date: date,
+        )..plannedProgram.value = created;
+      }).toList(),
+    );
+    await local.upsert(created, datesOverride: payload.dates);
+    unawaited(sync());
+  }
+
+  Future<void> update(int id, PlannedExerciseProgramPayloadDTO payload) async {
+    final existing = await local.getById(id);
+    if (existing == null) {
+      final programId = id;
+      final created = PlannedExerciseProgram(
+        id: programId,
         programId: payload.programId,
         synced: false,
         pendingDelete: false,
         isLocalOnly: true,
       );
-      fallback.dates.addAll(
-        payload.dates
-            .map(
-              (d) => PlannedExerciseProgramDate(
-                id: Isar.autoIncrement,
-                plannedExerciseProgramId: fallback.id,
-                date: d,
-              )..plannedProgram.value = fallback,
-            )
-            .toList(),
+      created.dates.addAll(
+        payload.dates.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final date = entry.value;
+          return PlannedExerciseProgramDate(
+            id: programId + idx + 1,
+            plannedExerciseProgramId: created.id,
+            date: date,
+          )..plannedProgram.value = created;
+        }).toList(),
       );
-      await local.upsert(fallback, datesOverride: payload.dates);
+      await local.upsert(created, datesOverride: payload.dates);
+      unawaited(sync());
+      return;
     }
-  }
 
-  Future<void> update(int id, PlannedExerciseProgramPayloadDTO payload) async {
-    try {
-      final updated = await remote.update(id, payload);
-      updated.dates
-        ..clear()
-        ..addAll(
-          payload.dates
-              .map(
-                (d) => PlannedExerciseProgramDate(
-                  id: Isar.autoIncrement,
-                  plannedExerciseProgramId: updated.id,
-                  date: d,
-                )..plannedProgram.value = updated,
-              )
-              .toList(),
-        );
-      await local.upsert(updated, datesOverride: payload.dates);
-    } catch (e) {
-      final existing = await local.getById(id);
-      if (existing != null) {
-        final updatedLocal = PlannedExerciseProgram(
-          id: existing.id,
-          programId: payload.programId,
-          synced: false,
-          pendingDelete: existing.pendingDelete,
-          isLocalOnly: existing.isLocalOnly,
-        );
-        updatedLocal.program.value = existing.program.value;
-        updatedLocal.dates.addAll(
-          payload.dates
-              .map(
-                (d) => PlannedExerciseProgramDate(
-                  id: Isar.autoIncrement,
-                  plannedExerciseProgramId: existing.id,
-                  date: d,
-                )..plannedProgram.value = existing,
-              )
-              .toList(),
-        );
-        await local.upsert(updatedLocal, datesOverride: payload.dates);
-      }
-    }
+    final updatedLocal = PlannedExerciseProgram(
+      id: existing.id,
+      programId: payload.programId,
+      synced: false,
+      pendingDelete: existing.pendingDelete,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    updatedLocal.program.value = existing.program.value;
+    updatedLocal.dates.addAll(
+      payload.dates.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final date = entry.value;
+        return PlannedExerciseProgramDate(
+          id: existing.id + idx + 1,
+          plannedExerciseProgramId: existing.id,
+          date: date,
+        )..plannedProgram.value = existing;
+      }).toList(),
+    );
+    await local.upsert(updatedLocal, datesOverride: payload.dates);
+    unawaited(sync());
   }
 
   Future<void> delete(int id) async {
@@ -182,5 +175,9 @@ class PlannedExerciseProgramRepository {
         continue;
       }
     }
+  }
+
+  int _generateLocalId() {
+    return DateTime.now().millisecondsSinceEpoch;
   }
 }
