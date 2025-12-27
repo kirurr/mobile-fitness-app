@@ -17,8 +17,8 @@ class ExerciseProgram {
   bool isLocalOnly;
 
   final programExercises = IsarLinks<ProgramExercise>();
-  final difficultyLevel = IsarLink<DifficultyLevel>();
-  final subscription = IsarLink<Subscription>();
+  final difficultyLevel = IsarLinks<DifficultyLevel>();
+  final subscription = IsarLinks<Subscription>();
   final fitnessGoals = IsarLinks<FitnessGoal>();
 
   ExerciseProgram({

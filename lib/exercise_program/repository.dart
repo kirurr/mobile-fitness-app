@@ -11,10 +11,7 @@ class ExerciseProgramRepository {
   final ExerciseProgramLocalDataSource local;
   final ExerciseProgramRemoteDataSource remote;
 
-  ExerciseProgramRepository({
-    required this.local,
-    required this.remote,
-  });
+  ExerciseProgramRepository({required this.local, required this.remote});
 
   Stream<List<ExerciseProgram>> watchPrograms() {
     return local.watchAll();
@@ -61,7 +58,8 @@ class ExerciseProgramRepository {
       return;
     }
     final hasPending = localPrograms.any(
-      (program) => !program.synced || program.pendingDelete || program.isLocalOnly,
+      (program) =>
+          !program.synced || program.pendingDelete || program.isLocalOnly,
     );
     if (hasPending) return;
     await refreshPrograms(
@@ -112,10 +110,9 @@ class ExerciseProgramRepository {
       isLocalOnly: existing.isLocalOnly,
     );
     await _attachProgramLinks(updatedLocal, payload);
-    final programExercises =
-        payload.exercises.isEmpty
-            ? existing.programExercises.toList()
-            : _buildProgramExercises(payload.exercises);
+    final programExercises = payload.exercises.isEmpty
+        ? existing.programExercises.toList()
+        : _buildProgramExercises(payload.exercises);
     await local.updateFromProgram(updatedLocal, programExercises);
     if (triggerSync) {
       unawaited(sync());
@@ -146,8 +143,12 @@ class ExerciseProgramRepository {
       pendingDelete: true,
       isLocalOnly: existing.isLocalOnly,
     );
-    updatedLocal.difficultyLevel.value = existing.difficultyLevel.value;
-    updatedLocal.subscription.value = existing.subscription.value;
+    updatedLocal.difficultyLevel
+      ..clear()
+      ..addAll(existing.difficultyLevel);
+    updatedLocal.subscription
+      ..clear()
+      ..addAll(existing.subscription);
     updatedLocal.fitnessGoals.addAll(existing.fitnessGoals);
     updatedLocal.programExercises.addAll(existing.programExercises);
     await local.updateFromProgram(
@@ -174,14 +175,10 @@ class ExerciseProgramRepository {
       if (item.pendingDelete) continue;
       final payload = _buildPayloadFromProgram(item);
       try {
-        final saved =
-            item.isLocalOnly
-                ? await remote.create(payload)
-                : await remote.update(item.id, payload);
-        await local.updateFromProgram(
-          saved,
-          saved.programExercises.toList(),
-        );
+        final saved = item.isLocalOnly
+            ? await remote.create(payload)
+            : await remote.update(item.id, payload);
+        await local.updateFromProgram(saved, saved.programExercises.toList());
       } catch (_) {
         continue;
       }
@@ -230,8 +227,12 @@ class ExerciseProgramRepository {
       id: item.id,
       name: item.name,
       description: item.description,
-      difficultyLevelId: item.difficultyLevel.value?.id ?? 0,
-      subscriptionId: item.subscription.value?.id,
+      difficultyLevelId: item.difficultyLevel.isNotEmpty
+          ? item.difficultyLevel.first.id
+          : 1,
+      subscriptionId: item.subscription.isNotEmpty
+          ? item.subscription.first.id
+          : null,
       userId: item.userId,
       fitnessGoalIds: item.fitnessGoals.map((g) => g.id).toList(),
       exercises: exercises,
@@ -265,21 +266,26 @@ class ExerciseProgramRepository {
     final difficulty = await local.db.difficultyLevels.get(
       payload.difficultyLevelId,
     );
-    program.difficultyLevel.value = difficulty;
+    program.difficultyLevel..clear();
+    if (difficulty != null) {
+      program.difficultyLevel.add(difficulty);
+    }
 
-    if (payload.subscriptionId == null) {
-      program.subscription.value = null;
-    } else {
-      program.subscription.value = await local.db.subscriptions.get(
+    program.subscription..clear();
+    if (payload.subscriptionId != null) {
+      final subscription = await local.db.subscriptions.get(
         payload.subscriptionId!,
       );
+      if (subscription != null) {
+        program.subscription.add(subscription);
+      }
     }
 
     final goalIds = payload.fitnessGoalIds;
     if (goalIds.isNotEmpty) {
-      final goals = (await local.db.fitnessGoals.getAll(goalIds))
-          .whereType<FitnessGoal>()
-          .toList();
+      final goals = (await local.db.fitnessGoals.getAll(
+        goalIds,
+      )).whereType<FitnessGoal>().toList();
       program.fitnessGoals
         ..clear()
         ..addAll(goals);

@@ -67,8 +67,14 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
       _editing = program;
       _nameController.text = program.name;
       _descriptionController.text = program.description;
-      _selectedDifficultyId = program.difficultyLevel.value?.id;
-      _selectedSubscriptionId = program.subscription.value?.id;
+      _selectedDifficultyId =
+          program.difficultyLevel.isNotEmpty
+              ? program.difficultyLevel.first.id
+              : null;
+      _selectedSubscriptionId =
+          program.subscription.isNotEmpty
+              ? program.subscription.first.id
+              : null;
       _selectedFitnessGoalIds
         ..clear()
         ..addAll(program.fitnessGoals.map((g) => g.id));

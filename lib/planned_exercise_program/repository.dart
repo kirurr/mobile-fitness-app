@@ -66,7 +66,7 @@ class PlannedExerciseProgramRepository {
       }).toList(),
     );
     await local.upsert(created, datesOverride: payload.dates);
-    unawaited(sync());
+    // unawaited(sync());
   }
 
   Future<void> update(int id, PlannedExerciseProgramPayloadDTO payload) async {
@@ -92,7 +92,7 @@ class PlannedExerciseProgramRepository {
         }).toList(),
       );
       await local.upsert(created, datesOverride: payload.dates);
-      unawaited(sync());
+      // unawaited(sync());
       return;
     }
 
@@ -116,7 +116,7 @@ class PlannedExerciseProgramRepository {
       }).toList(),
     );
     await local.upsert(updatedLocal, datesOverride: payload.dates);
-    unawaited(sync());
+    // unawaited(sync());
   }
 
   Future<void> delete(int id) async {
@@ -145,6 +145,7 @@ class PlannedExerciseProgramRepository {
     for (final item in pendingDeletes) {
       try {
         await remote.delete(item.id);
+        await local.deleteById(item.id);
       } catch (_) {
         continue;
       }
@@ -159,11 +160,14 @@ class PlannedExerciseProgramRepository {
         dates: item.dates.map((d) => d.date).toList(),
       );
       try {
-        if (item.isLocalOnly) {
-          await remote.create(payload);
-        } else {
-          await remote.update(item.id, payload);
+        final saved =
+            item.isLocalOnly
+                ? await remote.create(payload)
+                : await remote.update(item.id, payload);
+        if (saved.id != item.id) {
+          await local.deleteById(item.id);
         }
+        await local.upsert(saved);
       } catch (_) {
         continue;
       }

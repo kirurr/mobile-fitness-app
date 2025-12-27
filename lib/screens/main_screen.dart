@@ -144,6 +144,12 @@ class _MainScreenState extends State<MainScreen> {
             },
             child: const Text('Test API'),
           ),
+            ElevatedButton(
+              onPressed: () async {
+              await deps.syncService.syncPending();
+            },
+            child: const Text('Sync'),
+          ),
             StreamBuilder<UserData?>(
               stream: userRepo.watchUserData(),
               builder: (context, snapshot) {
@@ -231,22 +237,32 @@ class _MainScreenState extends State<MainScreen> {
             _buildSection(
               title: 'Exercise Programs',
               stream: programRepo.watchPrograms(),
-              itemBuilder: (context, item) => ListTile(
-                title: Text(item.name),
-                subtitle: Column(
-                  children: [
-                    Text(item.description),
-                    Text(item.difficultyLevel.value?.name ?? 'no difficulty level'),
-                    Text(item.subscription.value?.name ?? 'no subscription'),
-                  ],
-                ),
-                trailing: Text('Exercises: ${item.programExercises.length}'),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ProgramsScreen(),
+              itemBuilder: (context, item) {
+                final difficulty =
+                    item.difficultyLevel.isNotEmpty
+                        ? item.difficultyLevel.first
+                        : null;
+                final subscription =
+                    item.subscription.isNotEmpty
+                        ? item.subscription.first
+                        : null;
+                return ListTile(
+                  title: Text(item.name),
+                  subtitle: Column(
+                    children: [
+                      Text(item.description),
+                      Text(difficulty?.name ?? 'no difficulty level'),
+                      Text(subscription?.name ?? 'no subscription'),
+                    ],
                   ),
-                ),
-              ),
+                  trailing: Text('Exercises: ${item.programExercises.length}'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ProgramsScreen(),
+                    ),
+                  ),
+                );
+              },
             ),
             _buildSection(
               title: 'Subscriptions',

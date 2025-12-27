@@ -94,6 +94,7 @@ class PlannedExerciseProgramRemoteDataSource {
 
   Map<String, dynamic> _withIsoDates(PlannedExerciseProgramPayloadDTO payload) {
     return {
+      if (payload.id != null) 'id': payload.id,
       'programId': payload.programId,
       'dates': payload.dates.map(_toIsoString).toList(),
     };

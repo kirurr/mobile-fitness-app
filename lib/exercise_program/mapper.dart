@@ -59,7 +59,9 @@ class ExerciseProgramMapper {
         print('difficultyLevelId=${dto.difficultyLevelId} not found');
       } else {
         print('difficultyLevel=$difficultyLevel');
-        model.difficultyLevel.value = difficultyLevel;
+        model.difficultyLevel
+          ..clear()
+          ..add(difficultyLevel);
         await model.difficultyLevel.save();
       }
 
@@ -70,7 +72,9 @@ class ExerciseProgramMapper {
           print('subscriptionId=${dto.subscriptionId} not found');
         } else {
           print('subscription=$subscription');
-          model.subscription.value = subscription;
+          model.subscription
+            ..clear()
+            ..add(subscription);
           await model.subscription.save();
         }
       }
@@ -144,8 +148,14 @@ class ExerciseProgramMapper {
       userId: model.userId,
       name: model.name,
       description: model.description,
-      difficultyLevelId: model.difficultyLevel.value?.id ?? 0,
-      subscriptionId: model.subscription.value?.id,
+      difficultyLevelId:
+          model.difficultyLevel.isNotEmpty
+              ? model.difficultyLevel.first.id
+              : 0,
+      subscriptionId:
+          model.subscription.isNotEmpty
+              ? model.subscription.first.id
+              : null,
       fitnessGoalIds: model.fitnessGoals
           .map((goal) => goal.id)
           .toList(growable: false),

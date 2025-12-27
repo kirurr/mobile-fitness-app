@@ -54,13 +54,13 @@ const ExerciseProgramSchema = CollectionSchema(
       id: -8175624487116130044,
       name: r'difficultyLevel',
       target: r'DifficultyLevel',
-      single: true,
+      single: false,
     ),
     r'subscription': LinkSchema(
       id: -399303845843864828,
       name: r'subscription',
       target: r'Subscription',
-      single: true,
+      single: false,
     ),
     r'fitnessGoals': LinkSchema(
       id: 7192935065577023259,
@@ -789,9 +789,61 @@ extension ExerciseProgramQueryLinks
   }
 
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
-  difficultyLevelIsNull() {
+  difficultyLevelLengthEqualTo(int length) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'difficultyLevel', length, true, length, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  difficultyLevelIsEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.linkLength(r'difficultyLevel', 0, true, 0, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  difficultyLevelIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'difficultyLevel', 0, false, 999999, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  difficultyLevelLengthLessThan(int length, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'difficultyLevel', 0, true, length, include);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  difficultyLevelLengthGreaterThan(int length, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(
+        r'difficultyLevel',
+        length,
+        include,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  difficultyLevelLengthBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(
+        r'difficultyLevel',
+        lower,
+        includeLower,
+        upper,
+        includeUpper,
+      );
     });
   }
 
@@ -803,9 +855,55 @@ extension ExerciseProgramQueryLinks
   }
 
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
-  subscriptionIsNull() {
+  subscriptionLengthEqualTo(int length) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'subscription', length, true, length, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  subscriptionIsEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.linkLength(r'subscription', 0, true, 0, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  subscriptionIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'subscription', 0, false, 999999, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  subscriptionLengthLessThan(int length, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'subscription', 0, true, length, include);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  subscriptionLengthGreaterThan(int length, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(r'subscription', length, include, 999999, true);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  subscriptionLengthBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.linkLength(
+        r'subscription',
+        lower,
+        includeLower,
+        upper,
+        includeUpper,
+      );
     });
   }
 

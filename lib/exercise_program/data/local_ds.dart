@@ -181,8 +181,12 @@ class ExerciseProgramLocalDataSource {
         'incomingExercises=${incomingProgramExercises.length}, '
         'clearExisting=$clearExistingExercises',
       );
-      final difficulty = item.difficultyLevel.value;
-      final subscription = item.subscription.value;
+      final difficulty =
+          item.difficultyLevel.isNotEmpty
+              ? item.difficultyLevel.first
+              : null;
+      final subscription =
+          item.subscription.isNotEmpty ? item.subscription.first : null;
       final fitnessGoals = item.fitnessGoals.toList();
 
       final exerciseIds = incomingProgramExercises
@@ -266,8 +270,16 @@ class ExerciseProgramLocalDataSource {
             ..clear()
             ..addAll(managedPEs);
         }
-        managedProgram.difficultyLevel.value = difficulty;
-        managedProgram.subscription.value = subscription;
+        managedProgram.difficultyLevel
+          ..clear();
+        if (difficulty != null) {
+          managedProgram.difficultyLevel.add(difficulty);
+        }
+        managedProgram.subscription
+          ..clear();
+        if (subscription != null) {
+          managedProgram.subscription.add(subscription);
+        }
         managedProgram.fitnessGoals
           ..clear()
           ..addAll(fitnessGoals);

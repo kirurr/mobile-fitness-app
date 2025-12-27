@@ -243,7 +243,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
     }
 
     final difficultyId =
-        program.difficultyLevel.value?.id ??
+        (program.difficultyLevel.isNotEmpty
+                ? program.difficultyLevel.first.id
+                : null) ??
         _userData?.trainingLevel.value?.id;
     if (difficultyId == null) {
       if (!mounted) return;
@@ -263,7 +265,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         name: name,
         description: program.description,
         difficultyLevelId: difficultyId,
-        subscriptionId: program.subscription.value?.id,
+        subscriptionId: null,
         userId: program.userId,
         fitnessGoalIds: program.fitnessGoals.map((g) => g.id).toList(),
         exercises: program.programExercises.map((pe) {
@@ -571,7 +573,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (completedExercises.isEmpty) return;
 
     final difficultyId =
-        _program?.difficultyLevel.value?.id ?? userData.trainingLevel.value?.id;
+        (_program?.difficultyLevel.isNotEmpty == true
+                ? _program!.difficultyLevel.first.id
+                : null) ??
+            userData.trainingLevel.value?.id;
     if (difficultyId == null) return;
 
     final goalId = userData.fitnessGoal.value?.id;
@@ -814,7 +819,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
         ? programGoals.join(', ')
         : (_userData?.fitnessGoal.value?.name ?? '-');
     final difficulty =
-        _program?.difficultyLevel.value?.name ??
+        (_program?.difficultyLevel.isNotEmpty == true
+                ? _program!.difficultyLevel.first.name
+                : null) ??
         _userData?.trainingLevel.value?.name ??
         '-';
     return Card(
@@ -1154,7 +1161,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
         .map((goal) => goal.name)
         .toList(growable: false);
     final goalText = goals.isNotEmpty ? goals.join(', ') : '-';
-    final difficulty = program.difficultyLevel.value?.name ?? '-';
+    final difficulty =
+        program.difficultyLevel.isNotEmpty
+            ? program.difficultyLevel.first.name
+            : '-';
     final exerciseCount = program.programExercises.length;
     return Card(
       child: Padding(
