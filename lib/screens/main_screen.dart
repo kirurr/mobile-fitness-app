@@ -144,8 +144,8 @@ class _MainScreenState extends State<MainScreen> {
               await plannedExerciseProgramRepo.refreshPlannedPrograms();
               // await userCompletedExerciseRepo.refreshCompletedExercises();
               // await subscriptionRepo.refreshSubscriptions();
-              // await userSubscriptionRepo.refreshUserSubscriptions();
-              // await userPaymentRepo.refreshUserPayments();
+              await userSubscriptionRepo.refreshUserSubscriptions();
+              await userPaymentRepo.refreshUserPayments();
               await _refreshUserData();
             },
             child: const Text('Test API'),

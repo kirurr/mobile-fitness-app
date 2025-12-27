@@ -1,5 +1,6 @@
 import 'package:isar_community/isar.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
+import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/mapper.dart';
 import 'package:mobile_fitness_app/user_completed_program/dto.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
@@ -14,23 +15,35 @@ class UserCompletedProgramMapper {
   });
 
   Future<UserCompletedProgram> fromDto(UserCompletedProgramDTO dto) async {
-    final model = UserCompletedProgram(
-      id: dto.id,
-      userId: dto.userId,
-      programId: dto.programId,
-      startDate: dto.startDate,
-      endDate: dto.endDate,
-      synced: true,
-      pendingDelete: false,
-      isLocalOnly: false,
-    );
+    late UserCompletedProgram model;
 
-    model.program.value = await isar.exercisePrograms.get(dto.programId);
+    await isar.writeTxn(() async {
+      model = UserCompletedProgram(
+        id: dto.id,
+        userId: dto.userId,
+        programId: dto.programId,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+        synced: true,
+        pendingDelete: false,
+        isLocalOnly: false,
+      );
 
-    final exercises = await Future.wait(
-      dto.completedExercises.map(completedExerciseMapper.fromDto),
-    );
-    model.completedExercises.addAll(exercises);
+      await isar.userCompletedPrograms.put(model);
+
+      model.program.value = await isar.exercisePrograms.get(dto.programId);
+
+      final exercises = await Future.wait(
+        dto.completedExercises.map(completedExerciseMapper.fromDto),
+      );
+      if (exercises.isNotEmpty) {
+        await isar.userCompletedExercises.putAll(exercises);
+        model.completedExercises.addAll(exercises);
+        await model.completedExercises.save();
+      }
+
+      await model.program.save();
+    });
 
     return model;
   }

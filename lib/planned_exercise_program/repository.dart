@@ -25,6 +25,16 @@ class PlannedExerciseProgramRepository {
   Future<void> refreshPlannedPrograms() async {
     try {
       final remoteItems = await remote.getAll();
+      final localItems = await local.getAll();
+      final localById = {for (final item in localItems) item.id: item};
+      for (final item in remoteItems) {
+        final localItem = localById[item.id];
+        if (localItem == null) continue;
+        item.program.value ??= localItem.program.value;
+        if (item.dates.isEmpty && localItem.dates.isNotEmpty) {
+          item.dates.addAll(localItem.dates);
+        }
+      }
       await local.replaceAll(remoteItems);
     } catch (e) {
       print('Error refreshing planned exercise programs: $e');
@@ -133,21 +143,10 @@ class PlannedExerciseProgramRepository {
   Future<void> sync() async {
     final pendingDeletes = await local.getPendingDeletes();
     for (final item in pendingDeletes) {
-      final payload = PlannedExerciseProgramPayloadDTO(
-        programId: item.programId,
-        dates: item.dates.map((d) => d.date).toList(),
-      );
       try {
         await remote.delete(item.id);
-        await local.deleteById(item.id);
       } catch (_) {
-        try {
-          final created = await remote.create(payload);
-          await remote.delete(created.id);
-          await local.deleteById(item.id);
-        } catch (_) {
-          continue;
-        }
+        continue;
       }
     }
 
@@ -155,21 +154,15 @@ class PlannedExerciseProgramRepository {
     for (final item in unsynced) {
       if (item.pendingDelete) continue;
       final payload = PlannedExerciseProgramPayloadDTO(
+        id: item.id,
         programId: item.programId,
         dates: item.dates.map((d) => d.date).toList(),
       );
       try {
         if (item.isLocalOnly) {
-          final created = await remote.create(payload);
-          created.program.value ??= item.program.value;
-          created.dates.addAll(item.dates);
-          await local.deleteById(item.id);
-          await local.upsert(created);
+          await remote.create(payload);
         } else {
-          final updated = await remote.update(item.id, payload);
-          updated.program.value ??= item.program.value;
-          updated.dates.addAll(item.dates);
-          await local.upsert(updated);
+          await remote.update(item.id, payload);
         }
       } catch (_) {
         continue;

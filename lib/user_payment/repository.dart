@@ -103,22 +103,10 @@ class UserPaymentRepository {
     // Sync pending deletes first.
     final pendingDeletes = await local.getPendingDeletes();
     for (final item in pendingDeletes) {
-      final payload = UserPaymentPayloadDTO(
-        userId: item.userId,
-        amount: item.amount,
-      );
       try {
         await remote.delete(item.id);
-        await local.deleteById(item.id);
       } catch (_) {
-        // if delete fails because it doesn't exist remotely, try create then delete
-        try {
-          final created = await remote.create(payload);
-          await remote.delete(created.id);
-          await local.deleteById(item.id);
-        } catch (_) {
-          continue;
-        }
+        continue;
       }
     }
 
@@ -130,38 +118,16 @@ class UserPaymentRepository {
       }
 
       final payload = UserPaymentPayloadDTO(
+        id: item.id,
         userId: item.userId,
         amount: item.amount,
       );
 
       try {
         if (item.isLocalOnly) {
-          final created = await remote.create(payload);
-          await local.deleteById(item.id);
-          await local.upsert(
-            UserPayment(
-              id: created.id,
-              userId: created.userId,
-              createdAt: created.createdAt,
-              amount: created.amount,
-              synced: true,
-              pendingDelete: false,
-              isLocalOnly: false,
-            ),
-          );
+          await remote.create(payload);
         } else {
-          final updated = await remote.update(item.id, payload);
-          await local.upsert(
-            UserPayment(
-              id: updated.id,
-              userId: updated.userId,
-              createdAt: updated.createdAt,
-              amount: updated.amount,
-              synced: true,
-              pendingDelete: false,
-              isLocalOnly: false,
-            ),
-          );
+          await remote.update(item.id, payload);
         }
       } catch (_) {
         continue;

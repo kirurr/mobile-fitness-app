@@ -143,27 +143,10 @@ class UserCompletedExerciseRepository {
   Future<void> sync() async {
     final pendingDeletes = await local.getPendingDeletes();
     for (final item in pendingDeletes) {
-      final payload = UserCompletedExercisePayloadDTO(
-        completedProgramId: item.completedProgramId,
-        programExerciseId: item.programExerciseId,
-        exerciseId: item.exerciseId,
-        sets: item.sets,
-        reps: item.reps,
-        duration: item.duration,
-        weight: item.weight,
-        restDuration: item.restDuration,
-      );
       try {
         await remote.delete(item.id);
-        await local.deleteById(item.id);
       } catch (_) {
-        try {
-          final created = await remote.create(payload);
-          await remote.delete(created.id);
-          await local.deleteById(item.id);
-        } catch (_) {
-          continue;
-        }
+        continue;
       }
     }
 
@@ -174,6 +157,7 @@ class UserCompletedExerciseRepository {
         continue;
       }
       final payload = UserCompletedExercisePayloadDTO(
+        id: item.id,
         completedProgramId: item.completedProgramId,
         programExerciseId: item.programExerciseId,
         exerciseId: item.exerciseId,
@@ -185,53 +169,14 @@ class UserCompletedExerciseRepository {
       );
       try {
         if (item.isLocalOnly) {
-          final created = await remote.create(payload);
-          final merged = _mergeWithPayload(created, payload, existing: item);
-          merged.exercise.value ??= item.exercise.value;
-          merged.programExercise.value ??= item.programExercise.value;
-          await local.deleteById(item.id);
-          await local.upsert(merged);
+          await remote.create(payload);
         } else {
-          final updated = await remote.update(item.id, payload);
-          final merged = _mergeWithPayload(updated, payload, existing: item);
-          merged.exercise.value ??= item.exercise.value;
-          merged.programExercise.value ??= item.programExercise.value;
-          await local.upsert(merged);
+          await remote.update(item.id, payload);
         }
       } catch (_) {
         continue;
       }
     }
-  }
-
-  UserCompletedExercise _mergeWithPayload(
-    UserCompletedExercise remoteItem,
-    UserCompletedExercisePayloadDTO payload, {
-    UserCompletedExercise? existing,
-  }) {
-    final merged = UserCompletedExercise(
-      id: remoteItem.id,
-      completedProgramId: remoteItem.completedProgramId,
-      programExerciseId:
-          remoteItem.programExerciseId ??
-          payload.programExerciseId ??
-          existing?.programExerciseId,
-      exerciseId:
-          remoteItem.exerciseId ?? payload.exerciseId ?? existing?.exerciseId,
-      sets: remoteItem.sets,
-      reps: remoteItem.reps,
-      duration: remoteItem.duration,
-      weight: remoteItem.weight,
-      restDuration: remoteItem.restDuration,
-      synced: remoteItem.synced,
-      pendingDelete: remoteItem.pendingDelete,
-      isLocalOnly: remoteItem.isLocalOnly,
-    );
-    merged.exercise.value =
-        remoteItem.exercise.value ?? existing?.exercise.value;
-    merged.programExercise.value =
-        remoteItem.programExercise.value ?? existing?.programExercise.value;
-    return merged;
   }
 
   int _generateLocalId() {

@@ -39,7 +39,13 @@ class PlannedExerciseProgramDTO {
   });
 
   factory PlannedExerciseProgramDTO.fromJson(Map<String, dynamic> json) {
-    final datesJson = (json['dates'] as List? ?? [])
+    final datesSource =
+        (json['dates'] as List?) ??
+        (json['plannedDates'] as List?) ??
+        (json['planned_dates'] as List?) ??
+        (json['plannedExerciseProgramDates'] as List?) ??
+        const [];
+    final datesJson = datesSource
         .map(
           (e) =>
               PlannedExerciseProgramDateDTO.fromJson(e as Map<String, dynamic>),
@@ -63,15 +69,17 @@ class PlannedExerciseProgramDTO {
 }
 
 class PlannedExerciseProgramPayloadDTO {
+  final int? id;
   final int programId;
   final List<String> dates;
 
   const PlannedExerciseProgramPayloadDTO({
+    this.id,
     required this.programId,
     this.dates = const [],
   });
 
   Map<String, dynamic> toJson() {
-    return {'programId': programId, 'dates': dates};
+    return {'id': id, 'programId': programId, 'dates': dates};
   }
 }

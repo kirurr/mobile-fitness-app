@@ -111,23 +111,10 @@ class UserSubscriptionRepository {
   Future<void> sync() async {
     final pendingDeletes = await local.getPendingDeletes();
     for (final item in pendingDeletes) {
-      final payload = UserSubscriptionPayloadDTO(
-        userId: item.userId,
-        subscriptionId: item.subscription.value?.id,
-        startDate: item.startDate,
-        endDate: item.endDate,
-      );
       try {
         await remote.delete(item.id);
-        await local.deleteById(item.id);
       } catch (_) {
-        try {
-          final created = await remote.create(payload);
-          await remote.delete(created.id);
-          await local.deleteById(item.id);
-        } catch (_) {
-          continue;
-        }
+        continue;
       }
     }
 
@@ -135,6 +122,7 @@ class UserSubscriptionRepository {
     for (final item in unsynced) {
       if (item.pendingDelete) continue;
       final payload = UserSubscriptionPayloadDTO(
+        id: item.id,
         userId: item.userId,
         subscriptionId: item.subscription.value?.id,
         startDate: item.startDate,
@@ -142,14 +130,9 @@ class UserSubscriptionRepository {
       );
       try {
         if (item.isLocalOnly) {
-          final created = await remote.create(payload);
-          await local.deleteById(item.id);
-          created.subscription.value ??= item.subscription.value;
-          await local.upsert(created);
+          await remote.create(payload);
         } else {
-          final updated = await remote.update(item.id, payload);
-          updated.subscription.value ??= item.subscription.value;
-          await local.upsert(updated);
+          await remote.update(item.id, payload);
         }
       } catch (_) {
         continue;

@@ -35,12 +35,14 @@ class UserSubscriptionDTO {
 }
 
 class UserSubscriptionPayloadDTO {
+  final int? id;
   final int userId;
   final int? subscriptionId;
   final String startDate;
   final String endDate;
 
   const UserSubscriptionPayloadDTO({
+    this.id,
     required this.userId,
     required this.subscriptionId,
     required this.startDate,
@@ -49,6 +51,7 @@ class UserSubscriptionPayloadDTO {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'userId': userId,
       'subscriptionId': subscriptionId,
       'startDate': startDate,

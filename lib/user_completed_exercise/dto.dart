@@ -51,6 +51,7 @@ class UserCompletedExerciseDTO {
 }
 
 class UserCompletedExercisePayloadDTO {
+  final int? id;
   final int completedProgramId;
   final int? programExerciseId;
   final int? exerciseId;
@@ -61,6 +62,7 @@ class UserCompletedExercisePayloadDTO {
   final int? restDuration;
 
   const UserCompletedExercisePayloadDTO({
+    this.id,
     required this.completedProgramId,
     this.programExerciseId,
     this.exerciseId,
@@ -73,6 +75,7 @@ class UserCompletedExercisePayloadDTO {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'completedProgramId': completedProgramId,
       'programExerciseId': programExerciseId,
       'exerciseId': exerciseId,

@@ -18,7 +18,13 @@ class UserCompletedProgramDTO {
   });
 
   factory UserCompletedProgramDTO.fromJson(Map<String, dynamic> json) {
-    final exercises = (json['completedExercises'] as List? ?? [])
+    final exercisesSource =
+        (json['completedExercises'] as List?) ??
+        (json['completed_exercises'] as List?) ??
+        (json['completedExercise'] as List?) ??
+        (json['completed_exercise'] as List?) ??
+        const [];
+    final exercises = exercisesSource
         .map(
           (item) =>
               UserCompletedExerciseDTO.fromJson(item as Map<String, dynamic>),

@@ -25,6 +25,19 @@ class UserCompletedProgramRepository {
   Future<void> refreshCompletedPrograms() async {
     try {
       final remoteItems = await remote.getAll();
+      final localItems = await local.getAll();
+      final localById = {
+        for (final item in localItems) item.id: item,
+      };
+      for (final item in remoteItems) {
+        final localItem = localById[item.id];
+        if (localItem == null) continue;
+        item.program.value ??= localItem.program.value;
+        if (item.completedExercises.isEmpty &&
+            localItem.completedExercises.isNotEmpty) {
+          item.completedExercises.addAll(localItem.completedExercises);
+        }
+      }
       await local.replaceAll(remoteItems);
     } catch (e) {
       print('Error refreshing completed programs: $e');
@@ -141,24 +154,10 @@ class UserCompletedProgramRepository {
   Future<void> sync() async {
     final pendingDeletes = await local.getPendingDeletes();
     for (final item in pendingDeletes) {
-      final payload = UserCompletedProgramPayloadDTO(
-        id: item.id,
-        userId: item.userId,
-        programId: item.programId,
-        startDate: item.startDate,
-        endDate: item.endDate,
-      );
       try {
         await remote.delete(item.id);
-        await local.deleteById(item.id);
       } catch (_) {
-        try {
-          final created = await remote.create(payload);
-          await remote.delete(created.id);
-          await local.deleteById(item.id);
-        } catch (_) {
-          continue;
-        }
+        continue;
       }
     }
 
@@ -174,14 +173,9 @@ class UserCompletedProgramRepository {
       );
       try {
         if (item.isLocalOnly) {
-          final created = await remote.create(payload);
-          final merged = _mergeRemoteWithLocal(created, item);
-          await local.deleteById(item.id);
-          await local.upsert(merged);
+          await remote.create(payload);
         } else {
-          final updated = await remote.update(item.id, payload);
-          final merged = _mergeRemoteWithLocal(updated, item);
-          await local.upsert(merged);
+          await remote.update(item.id, payload);
         }
       } catch (_) {
         continue;
@@ -213,31 +207,4 @@ class UserCompletedProgramRepository {
     return trimmed;
   }
 
-  UserCompletedProgram _mergeRemoteWithLocal(
-    UserCompletedProgram remoteItem,
-    UserCompletedProgram localItem,
-  ) {
-    final merged = UserCompletedProgram(
-      id: remoteItem.id,
-      userId: remoteItem.userId,
-      programId: remoteItem.programId,
-      startDate: _normalizeStartDate(
-        remoteItem.startDate,
-        fallback: localItem.startDate,
-      ),
-      endDate: _normalizeEndDate(
-        remoteItem.endDate,
-        fallback: localItem.endDate,
-      ),
-      synced: remoteItem.synced,
-      pendingDelete: remoteItem.pendingDelete,
-      isLocalOnly: remoteItem.isLocalOnly,
-    );
-    merged.program.value = remoteItem.program.value ?? localItem.program.value;
-    final exercises = remoteItem.completedExercises.isNotEmpty
-        ? remoteItem.completedExercises
-        : localItem.completedExercises;
-    merged.completedExercises.addAll(exercises);
-    return merged;
-  }
 }

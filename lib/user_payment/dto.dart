@@ -31,16 +31,19 @@ class UserPaymentDTO {
 }
 
 class UserPaymentPayloadDTO {
+  final int? id;
   final int userId;
   final int amount;
 
   const UserPaymentPayloadDTO({
+    this.id,
     required this.userId,
     required this.amount,
   });
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'userId': userId,
       'amount': amount,
     };
