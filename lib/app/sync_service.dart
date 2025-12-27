@@ -3,10 +3,12 @@ import 'package:mobile_fitness_app/user_completed_exercise/repository.dart';
 import 'package:mobile_fitness_app/user_completed_program/repository.dart';
 import 'package:mobile_fitness_app/user_payment/repository.dart';
 import 'package:mobile_fitness_app/user_subscription/repository.dart';
+import 'package:mobile_fitness_app/exercise_program/repository.dart';
 
 class SyncService {
   final UserSubscriptionRepository userSubscriptionRepository;
   final UserPaymentRepository userPaymentRepository;
+  final ExerciseProgramRepository exerciseProgramRepository;
   final PlannedExerciseProgramRepository plannedExerciseProgramRepository;
   final UserCompletedProgramRepository userCompletedProgramRepository;
   final UserCompletedExerciseRepository userCompletedExerciseRepository;
@@ -19,6 +21,7 @@ class SyncService {
   SyncService({
     required this.userSubscriptionRepository,
     required this.userPaymentRepository,
+    required this.exerciseProgramRepository,
     required this.plannedExerciseProgramRepository,
     required this.userCompletedProgramRepository,
     required this.userCompletedExerciseRepository,
@@ -34,6 +37,8 @@ class SyncService {
       await _syncWithRetry(userSubscriptionRepository.sync);
       await _delayBetween();
       await _syncWithRetry(userPaymentRepository.sync);
+      await _delayBetween();
+      await _syncWithRetry(exerciseProgramRepository.sync);
       await _delayBetween();
       await _syncWithRetry(plannedExerciseProgramRepository.sync);
       await _delayBetween();

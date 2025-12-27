@@ -36,6 +36,25 @@ class ExerciseProgramLocalDataSource {
     return item;
   }
 
+  Future<List<ExerciseProgram>> getUnsynced() async {
+    final items = await _collection.filter().syncedEqualTo(false).findAll();
+    for (final item in items) {
+      await _loadLinks(item);
+    }
+    return items;
+  }
+
+  Future<List<ExerciseProgram>> getPendingDeletes() async {
+    final items = await _collection
+        .filter()
+        .pendingDeleteEqualTo(true)
+        .findAll();
+    for (final item in items) {
+      await _loadLinks(item);
+    }
+    return items;
+  }
+
   Future<void> replaceAll(List<ExerciseProgram> items) async {
     // Clear existing data in one transaction.
     await db.writeTxn(() async {
@@ -205,8 +224,8 @@ class ExerciseProgramLocalDataSource {
 
       await db.writeTxn(() async {
         final programId = await _collection.put(item);
-        final managedProgram = await _collection.get(programId);
-        if (managedProgram == null) return;
+        item.id = programId;
+        final managedProgram = item;
 
         if (shouldUpdateProgramExercises) {
           if (clearExistingExercises) {

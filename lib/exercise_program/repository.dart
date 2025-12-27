@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:mobile_fitness_app/exercise_program/data/local_ds.dart';
 import 'package:mobile_fitness_app/exercise_program/data/remote_ds.dart';
 import 'package:mobile_fitness_app/exercise_program/dto.dart';
@@ -44,11 +45,15 @@ class ExerciseProgramRepository {
   }
 
   Future<ExerciseProgram> createProgram(
-    ExerciseProgramPayloadDTO payload,
-  ) async {
-    final created = await remote.create(payload);
-    final programExercises = created.programExercises.toList();
-    await local.create(created, programExercises: programExercises);
+    ExerciseProgramPayloadDTO payload, {
+    int? id,
+    bool triggerSync = true,
+  }) async {
+    final created = await _createLocalProgram(
+      payload,
+      id: id,
+      triggerSync: triggerSync,
+    );
     return created;
   }
 
@@ -56,65 +61,153 @@ class ExerciseProgramRepository {
     ExerciseProgramPayloadDTO payload, {
     int? id,
   }) async {
-    final programId = id ?? _generateLocalId();
-    final localProgram = ExerciseProgram(
-      id: programId,
-      userId: payload.userId,
-      name: payload.name,
-      description: payload.description,
-    );
-    await _attachProgramLinks(localProgram, payload);
-    final programExercises = _buildProgramExercises(payload.exercises);
-    await local.create(localProgram, programExercises: programExercises);
-    return localProgram;
+    return _createLocalProgram(payload, id: id, triggerSync: false);
   }
 
   Future<ExerciseProgram> updateProgram(
     int id,
-    ExerciseProgramPayloadDTO payload,
-  ) async {
-    print(
-      'ExerciseProgramRepository.updateProgram: '
-      'id=$id payloadExercises=${payload.exercises.length}',
-    );
-    ExerciseProgram updated = await remote.update(id, payload);
-    if (updated.programExercises.isEmpty && payload.exercises.isNotEmpty) {
-      try {
-        final fetched = await remote.getById(id);
-        if (fetched != null && fetched.programExercises.isNotEmpty) {
-          updated = fetched;
-        }
-      } catch (e) {
-        print('ExerciseProgramRepository.updateProgram: getById failed: $e');
-      }
+    ExerciseProgramPayloadDTO payload, {
+    bool triggerSync = true,
+  }) async {
+    final existing = await local.getById(id);
+    if (existing == null) {
+      return _createLocalProgram(payload, id: id, triggerSync: triggerSync);
     }
-    final programExercises = updated.programExercises.toList();
-    await local.updateFromProgram(updated, programExercises);
-    return updated;
+
+    final updatedLocal = ExerciseProgram(
+      id: existing.id,
+      userId: payload.userId ?? existing.userId,
+      name: payload.name,
+      description: payload.description,
+      synced: false,
+      pendingDelete: existing.pendingDelete,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    await _attachProgramLinks(updatedLocal, payload);
+    final programExercises =
+        payload.exercises.isEmpty
+            ? existing.programExercises.toList()
+            : _buildProgramExercises(payload.exercises);
+    await local.updateFromProgram(updatedLocal, programExercises);
+    if (triggerSync) {
+      unawaited(sync());
+    }
+    return updatedLocal;
   }
 
   Future<ExerciseProgram> updateLocalProgram(
     int id,
     ExerciseProgramPayloadDTO payload,
   ) async {
+    return updateProgram(id, payload, triggerSync: false);
+  }
+
+  Future<void> deleteProgram(int id, {bool triggerSync = true}) async {
+    final existing = await local.getById(id);
+    if (existing == null) return;
+    if (existing.isLocalOnly) {
+      await local.deleteById(id);
+      return;
+    }
+    final updatedLocal = ExerciseProgram(
+      id: existing.id,
+      userId: existing.userId,
+      name: existing.name,
+      description: existing.description,
+      synced: false,
+      pendingDelete: true,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    updatedLocal.difficultyLevel.value = existing.difficultyLevel.value;
+    updatedLocal.subscription.value = existing.subscription.value;
+    updatedLocal.fitnessGoals.addAll(existing.fitnessGoals);
+    updatedLocal.programExercises.addAll(existing.programExercises);
+    await local.updateFromProgram(
+      updatedLocal,
+      existing.programExercises.toList(),
+    );
+    if (triggerSync) {
+      unawaited(sync());
+    }
+  }
+
+  Future<void> sync() async {
+    final pendingDeletes = await local.getPendingDeletes();
+    for (final item in pendingDeletes) {
+      try {
+        await remote.delete(item.id);
+      } catch (_) {
+        continue;
+      }
+    }
+
+    final unsynced = await local.getUnsynced();
+    for (final item in unsynced) {
+      if (item.pendingDelete) continue;
+      final payload = _buildPayloadFromProgram(item);
+      try {
+        final saved =
+            item.isLocalOnly
+                ? await remote.create(payload)
+                : await remote.update(item.id, payload);
+        await local.updateFromProgram(
+          saved,
+          saved.programExercises.toList(),
+        );
+      } catch (_) {
+        continue;
+      }
+    }
+  }
+
+  Future<ExerciseProgram> _createLocalProgram(
+    ExerciseProgramPayloadDTO payload, {
+    int? id,
+    bool triggerSync = true,
+  }) async {
+    final programId = id ?? _generateLocalId();
     final localProgram = ExerciseProgram(
-      id: id,
+      id: programId,
       userId: payload.userId,
       name: payload.name,
       description: payload.description,
+      synced: false,
+      pendingDelete: false,
+      isLocalOnly: true,
     );
     await _attachProgramLinks(localProgram, payload);
-    final programExercises =
-        payload.exercises.isEmpty
-            ? null
-            : _buildProgramExercises(payload.exercises);
-    await local.updateFromProgram(localProgram, programExercises);
+    final programExercises = _buildProgramExercises(payload.exercises);
+    await local.create(localProgram, programExercises: programExercises);
+    if (triggerSync) {
+      unawaited(sync());
+    }
     return localProgram;
   }
 
-  Future<void> deleteProgram(int id) async {
-    await remote.delete(id);
-    await local.deleteById(id);
+  ExerciseProgramPayloadDTO _buildPayloadFromProgram(ExerciseProgram item) {
+    final exercises = item.programExercises
+        .map(
+          (pe) => ProgramExerciseDTO(
+            id: pe.id,
+            exerciseId: pe.exerciseId,
+            order: pe.order,
+            sets: pe.sets,
+            reps: pe.reps,
+            duration: pe.duration,
+            restDuration: pe.restDuration,
+          ),
+        )
+        .toList();
+    return ExerciseProgramPayloadDTO(
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      difficultyLevelId: item.difficultyLevel.value?.id ?? 0,
+      subscriptionId: item.subscription.value?.id,
+      userId: item.userId,
+      fitnessGoalIds: item.fitnessGoals.map((g) => g.id).toList(),
+      exercises: exercises,
+    );
   }
 
   List<ProgramExercise> _buildProgramExercises(

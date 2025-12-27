@@ -129,6 +129,7 @@ class Dependencies {
     final syncService = SyncService(
       userSubscriptionRepository: userSubscriptionRepository,
       userPaymentRepository: userPaymentRepository,
+      exerciseProgramRepository: exerciseProgramRepository,
       plannedExerciseProgramRepository: plannedExerciseProgramRepository,
       userCompletedProgramRepository: userCompletedProgramRepository,
       userCompletedExerciseRepository: userCompletedExerciseRepository,

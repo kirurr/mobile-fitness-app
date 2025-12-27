@@ -12,6 +12,9 @@ class ExerciseProgram {
   final int? userId;
   final String name;
   final String description;
+  bool synced;
+  bool pendingDelete;
+  bool isLocalOnly;
 
   final programExercises = IsarLinks<ProgramExercise>();
   final difficultyLevel = IsarLink<DifficultyLevel>();
@@ -23,6 +26,9 @@ class ExerciseProgram {
     required this.userId,
     required this.name,
     required this.description,
+    this.synced = true,
+    this.pendingDelete = false,
+    this.isLocalOnly = false,
   });
 }
 

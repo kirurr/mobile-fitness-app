@@ -20,6 +20,9 @@ class ExerciseProgramMapper {
         userId: dto.userId,
         name: dto.name,
         description: dto.description,
+        synced: true,
+        pendingDelete: false,
+        isLocalOnly: false,
       );
 
       // сначала сохраняем модель — иначе она не attached

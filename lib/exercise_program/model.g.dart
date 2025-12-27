@@ -22,8 +22,19 @@ const ExerciseProgramSchema = CollectionSchema(
       name: r'description',
       type: IsarType.string,
     ),
-    r'name': PropertySchema(id: 1, name: r'name', type: IsarType.string),
-    r'userId': PropertySchema(id: 2, name: r'userId', type: IsarType.long),
+    r'isLocalOnly': PropertySchema(
+      id: 1,
+      name: r'isLocalOnly',
+      type: IsarType.bool,
+    ),
+    r'name': PropertySchema(id: 2, name: r'name', type: IsarType.string),
+    r'pendingDelete': PropertySchema(
+      id: 3,
+      name: r'pendingDelete',
+      type: IsarType.bool,
+    ),
+    r'synced': PropertySchema(id: 4, name: r'synced', type: IsarType.bool),
+    r'userId': PropertySchema(id: 5, name: r'userId', type: IsarType.long),
   },
 
   estimateSize: _exerciseProgramEstimateSize,
@@ -84,8 +95,11 @@ void _exerciseProgramSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeString(offsets[0], object.description);
-  writer.writeString(offsets[1], object.name);
-  writer.writeLong(offsets[2], object.userId);
+  writer.writeBool(offsets[1], object.isLocalOnly);
+  writer.writeString(offsets[2], object.name);
+  writer.writeBool(offsets[3], object.pendingDelete);
+  writer.writeBool(offsets[4], object.synced);
+  writer.writeLong(offsets[5], object.userId);
 }
 
 ExerciseProgram _exerciseProgramDeserialize(
@@ -97,8 +111,11 @@ ExerciseProgram _exerciseProgramDeserialize(
   final object = ExerciseProgram(
     description: reader.readString(offsets[0]),
     id: id,
-    name: reader.readString(offsets[1]),
-    userId: reader.readLongOrNull(offsets[2]),
+    isLocalOnly: reader.readBoolOrNull(offsets[1]) ?? false,
+    name: reader.readString(offsets[2]),
+    pendingDelete: reader.readBoolOrNull(offsets[3]) ?? false,
+    synced: reader.readBoolOrNull(offsets[4]) ?? true,
+    userId: reader.readLongOrNull(offsets[5]),
   );
   return object;
 }
@@ -113,8 +130,14 @@ P _exerciseProgramDeserializeProp<P>(
     case 0:
       return (reader.readString(offset)) as P;
     case 1:
-      return (reader.readString(offset)) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 2:
+      return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 4:
+      return (reader.readBoolOrNull(offset) ?? true) as P;
+    case 5:
       return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -446,6 +469,15 @@ extension ExerciseProgramQueryFilter
   }
 
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  isLocalOnlyEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'isLocalOnly', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
   nameEqualTo(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -582,6 +614,24 @@ extension ExerciseProgramQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(property: r'name', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  pendingDeleteEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'pendingDelete', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  syncedEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'synced', value: value),
       );
     });
   }
@@ -836,6 +886,20 @@ extension ExerciseProgramQuerySortBy
     });
   }
 
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortByIsLocalOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortByIsLocalOnlyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.desc);
+    });
+  }
+
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy> sortByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -846,6 +910,33 @@ extension ExerciseProgramQuerySortBy
   sortByNameDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortByPendingDelete() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pendingDelete', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortByPendingDeleteDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pendingDelete', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy> sortBySynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortBySyncedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.desc);
     });
   }
 
@@ -891,6 +982,20 @@ extension ExerciseProgramQuerySortThenBy
     });
   }
 
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenByIsLocalOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenByIsLocalOnlyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.desc);
+    });
+  }
+
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy> thenByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -901,6 +1006,33 @@ extension ExerciseProgramQuerySortThenBy
   thenByNameDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenByPendingDelete() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pendingDelete', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenByPendingDeleteDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'pendingDelete', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy> thenBySynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenBySyncedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.desc);
     });
   }
 
@@ -927,11 +1059,31 @@ extension ExerciseProgramQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QDistinct>
+  distinctByIsLocalOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isLocalOnly');
+    });
+  }
+
   QueryBuilder<ExerciseProgram, ExerciseProgram, QDistinct> distinctByName({
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'name', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QDistinct>
+  distinctByPendingDelete() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'pendingDelete');
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QDistinct> distinctBySynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'synced');
     });
   }
 
@@ -957,9 +1109,28 @@ extension ExerciseProgramQueryProperty
     });
   }
 
+  QueryBuilder<ExerciseProgram, bool, QQueryOperations> isLocalOnlyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isLocalOnly');
+    });
+  }
+
   QueryBuilder<ExerciseProgram, String, QQueryOperations> nameProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'name');
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, bool, QQueryOperations>
+  pendingDeleteProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'pendingDelete');
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, bool, QQueryOperations> syncedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'synced');
     });
   }
 

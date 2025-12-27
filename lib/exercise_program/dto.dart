@@ -31,6 +31,7 @@ class ProgramExerciseDTO {
 
   Map<String, dynamic> toJson() {
     return {
+      if (id != null) 'id': id,
       'exerciseId': exerciseId,
       'order': order,
       'sets': sets,
@@ -100,6 +101,7 @@ class ExerciseProgramDTO {
 }
 
 class ExerciseProgramPayloadDTO {
+  final int? id;
   final String name;
   final String description;
   final int difficultyLevelId;
@@ -109,6 +111,7 @@ class ExerciseProgramPayloadDTO {
   final List<ProgramExerciseDTO> exercises;
 
   const ExerciseProgramPayloadDTO({
+    this.id,
     required this.name,
     required this.description,
     required this.difficultyLevelId,
@@ -120,6 +123,7 @@ class ExerciseProgramPayloadDTO {
 
   Map<String, dynamic> toJson() {
     return {
+      if (id != null) 'id': id,
       'name': name,
       'description': description,
       'difficultyLevelId': difficultyLevelId,
