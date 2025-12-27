@@ -35,7 +35,8 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _syncOnStart() async {
     final deps = DependencyScope.of(context);
-    await deps.syncService.syncAll();
+    // await deps.syncService.refreshAll();
+    await deps.syncService.syncPending();
   }
 
   Future<void> _guardAuth() async {
@@ -122,11 +123,6 @@ class _MainScreenState extends State<MainScreen> {
     final userPaymentRepo = deps.userPaymentRepository;
     final userRepo = deps.userDataRepository;
 
-    final userCompletedProgramRepo =
-        deps.userCompletedProgramRepository;
-    final plannedExerciseProgramRepo =
-        deps.plannedExerciseProgramRepository;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Main'),
@@ -144,19 +140,7 @@ class _MainScreenState extends State<MainScreen> {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () async {
-              //   await fitnessRepo.refreshGoals();
-              //   await difficlutyRepo.refreshLevels();
-              // await categoryRepo.refreshCategories();
-              // await muscleRepo.refreshGroups();
-              // await exerciseRepo.refreshExercises();
-              await programRepo.refreshPrograms();
-              await userCompletedProgramRepo.refreshCompletedPrograms();
-              await plannedExerciseProgramRepo.refreshPlannedPrograms();
-              // await userCompletedExerciseRepo.refreshCompletedExercises();
-              // await subscriptionRepo.refreshSubscriptions();
-              await userSubscriptionRepo.refreshUserSubscriptions();
-              await userPaymentRepo.refreshUserPayments();
-              await _refreshUserData();
+              await deps.syncService.refreshAll();
             },
             child: const Text('Test API'),
           ),
@@ -249,7 +233,13 @@ class _MainScreenState extends State<MainScreen> {
               stream: programRepo.watchPrograms(),
               itemBuilder: (context, item) => ListTile(
                 title: Text(item.name),
-                subtitle: Text(item.description),
+                subtitle: Column(
+                  children: [
+                    Text(item.description),
+                    Text(item.difficultyLevel.value?.name ?? 'no difficulty level'),
+                    Text(item.subscription.value?.name ?? 'no subscription'),
+                  ],
+                ),
                 trailing: Text('Exercises: ${item.programExercises.length}'),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(

@@ -1,13 +1,27 @@
+import 'package:mobile_fitness_app/difficulty_level/repository.dart';
+import 'package:mobile_fitness_app/exercise/repository.dart';
+import 'package:mobile_fitness_app/exercise_category/repository.dart';
+import 'package:mobile_fitness_app/fitness_goal/repository.dart';
+import 'package:mobile_fitness_app/muscle_group/repository.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/repository.dart';
+import 'package:mobile_fitness_app/subscription/repository.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/repository.dart';
 import 'package:mobile_fitness_app/user_completed_program/repository.dart';
+import 'package:mobile_fitness_app/user_data/repository.dart';
 import 'package:mobile_fitness_app/user_payment/repository.dart';
 import 'package:mobile_fitness_app/user_subscription/repository.dart';
 import 'package:mobile_fitness_app/exercise_program/repository.dart';
 
 class SyncService {
+  final DifficultyLevelRepository difficultyLevelRepository;
+  final SubscriptionRepository subscriptionRepository;
+  final FitnessGoalRepository fitnessGoalRepository;
+  final ExerciseCategoryRepository exerciseCategoryRepository;
+  final MuscleGroupRepository muscleGroupRepository;
+  final ExerciseRepository exerciseRepository;
   final UserSubscriptionRepository userSubscriptionRepository;
   final UserPaymentRepository userPaymentRepository;
+  final UserDataRepository userDataRepository;
   final ExerciseProgramRepository exerciseProgramRepository;
   final PlannedExerciseProgramRepository plannedExerciseProgramRepository;
   final UserCompletedProgramRepository userCompletedProgramRepository;
@@ -19,8 +33,15 @@ class SyncService {
   final int maxRetries;
 
   SyncService({
+    required this.difficultyLevelRepository,
+    required this.subscriptionRepository,
+    required this.fitnessGoalRepository,
+    required this.exerciseCategoryRepository,
+    required this.muscleGroupRepository,
+    required this.exerciseRepository,
     required this.userSubscriptionRepository,
     required this.userPaymentRepository,
+    required this.userDataRepository,
     required this.exerciseProgramRepository,
     required this.plannedExerciseProgramRepository,
     required this.userCompletedProgramRepository,
@@ -30,7 +51,39 @@ class SyncService {
     this.maxRetries = 2,
   });
 
-  Future<void> syncAll() async {
+  Future<void> refreshAll() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    try {
+      await _syncWithRetry(difficultyLevelRepository.refreshLevels);
+      await _delayBetween();
+      await _syncWithRetry(subscriptionRepository.refreshSubscriptions);
+      await _delayBetween();
+      await _syncWithRetry(fitnessGoalRepository.refreshGoals);
+      await _delayBetween();
+      await _syncWithRetry(exerciseCategoryRepository.refreshCategories);
+      await _delayBetween();
+      await _syncWithRetry(muscleGroupRepository.refreshGroups);
+      await _delayBetween();
+      await _syncWithRetry(() => exerciseRepository.refreshExercises());
+      await _delayBetween();
+      await _syncWithRetry(exerciseProgramRepository.refreshProgramsIfSafe);
+      await _delayBetween();
+      await _syncWithRetry(userSubscriptionRepository.refreshUserSubscriptions);
+      await _delayBetween();
+      await _syncWithRetry(userPaymentRepository.refreshUserPayments);
+      await _delayBetween();
+      await _syncWithRetry(plannedExerciseProgramRepository.refreshPlannedPrograms);
+      await _delayBetween();
+      await _syncWithRetry(userCompletedProgramRepository.refreshCompletedPrograms);
+      await _delayBetween();
+      await _syncWithRetry(userDataRepository.refreshUserData);
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<void> syncPending() async {
     if (_isSyncing) return;
     _isSyncing = true;
     try {

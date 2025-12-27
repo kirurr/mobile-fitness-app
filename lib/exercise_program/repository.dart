@@ -44,6 +44,34 @@ class ExerciseProgramRepository {
     }
   }
 
+  Future<void> refreshProgramsIfSafe({
+    int? difficultyLevelId,
+    int? subscriptionId,
+    int? fitnessGoalId,
+    int? userId,
+  }) async {
+    final localPrograms = await getLocalPrograms();
+    if (localPrograms.isEmpty) {
+      await refreshPrograms(
+        difficultyLevelId: difficultyLevelId,
+        subscriptionId: subscriptionId,
+        fitnessGoalId: fitnessGoalId,
+        userId: userId,
+      );
+      return;
+    }
+    final hasPending = localPrograms.any(
+      (program) => !program.synced || program.pendingDelete || program.isLocalOnly,
+    );
+    if (hasPending) return;
+    await refreshPrograms(
+      difficultyLevelId: difficultyLevelId,
+      subscriptionId: subscriptionId,
+      fitnessGoalId: fitnessGoalId,
+      userId: userId,
+    );
+  }
+
   Future<ExerciseProgram> createProgram(
     ExerciseProgramPayloadDTO payload, {
     int? id,

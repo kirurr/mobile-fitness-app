@@ -31,18 +31,18 @@ class ExerciseProgramMapper {
       final hasExercises = dto.exercises.isNotEmpty;
       final programExercises = hasExercises
           ? dto.exercises
-              .map(
-                (e) => ProgramExercise(
-                  id: e.id!,
-                  exerciseId: e.exerciseId,
-                  order: e.order,
-                  sets: e.sets,
-                  reps: e.reps,
-                  duration: e.duration,
-                  restDuration: e.restDuration,
-                ),
-              )
-              .toList()
+                .map(
+                  (e) => ProgramExercise(
+                    id: e.id!,
+                    exerciseId: e.exerciseId,
+                    order: e.order,
+                    sets: e.sets,
+                    reps: e.reps,
+                    duration: e.duration,
+                    restDuration: e.restDuration,
+                  ),
+                )
+                .toList()
           : <ProgramExercise>[];
 
       if (hasExercises) {
@@ -51,16 +51,28 @@ class ExerciseProgramMapper {
 
       // -------- LINKS --------
 
-      // difficulty
-      model.difficultyLevel.value = await isar.difficultyLevels.get(
+      print('difficultyLevelId=${dto.difficultyLevelId}');
+      final difficultyLevel = await isar.difficultyLevels.get(
         dto.difficultyLevelId,
       );
+      if (difficultyLevel == null) {
+        print('difficultyLevelId=${dto.difficultyLevelId} not found');
+      } else {
+        print('difficultyLevel=$difficultyLevel');
+        model.difficultyLevel.value = difficultyLevel;
+        await model.difficultyLevel.save();
+      }
 
-      // subscription
+      print('subscriptionId=${dto.subscriptionId}');
       if (dto.subscriptionId != null) {
-        model.subscription.value = await isar.subscriptions.get(
-          dto.subscriptionId!,
-        );
+        final subscription = await isar.subscriptions.get(dto.subscriptionId!);
+        if (subscription == null) {
+          print('subscriptionId=${dto.subscriptionId} not found');
+        } else {
+          print('subscription=$subscription');
+          model.subscription.value = subscription;
+          await model.subscription.save();
+        }
       }
 
       // goals
@@ -93,8 +105,6 @@ class ExerciseProgramMapper {
 
       // -------- SAVE LINKS --------
 
-      await model.difficultyLevel.save();
-      await model.subscription.save();
       await model.fitnessGoals.save();
       if (hasExercises) {
         await model.programExercises.save();

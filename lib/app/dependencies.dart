@@ -127,8 +127,15 @@ class Dependencies {
         );
 
     final syncService = SyncService(
+      difficultyLevelRepository: difficultyLevelRepository,
+      subscriptionRepository: subscriptionRepository,
+      fitnessGoalRepository: fitnessGoalRepository,
+      exerciseCategoryRepository: exerciseCategoryRepository,
+      muscleGroupRepository: muscleGroupRepository,
+      exerciseRepository: exerciseRepository,
       userSubscriptionRepository: userSubscriptionRepository,
       userPaymentRepository: userPaymentRepository,
+      userDataRepository: userDataRepository,
       exerciseProgramRepository: exerciseProgramRepository,
       plannedExerciseProgramRepository: plannedExerciseProgramRepository,
       userCompletedProgramRepository: userCompletedProgramRepository,
