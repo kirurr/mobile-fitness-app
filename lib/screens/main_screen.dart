@@ -27,9 +27,15 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _guardAuth();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncOnStart();
       _refreshUserData();
       _checkUserDataOnStart();
     });
+  }
+
+  Future<void> _syncOnStart() async {
+    final deps = DependencyScope.of(context);
+    await deps.syncService.syncAll();
   }
 
   Future<void> _guardAuth() async {
@@ -59,9 +65,13 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Future<void> _refreshUserData() async {
+  Future<void> _refreshUserData({bool force = false}) async {
     try {
       final deps = DependencyScope.of(context);
+      if (!force) {
+        final local = await deps.userDataRepository.getLocalUserData();
+        if (local != null) return;
+      }
       await deps.userDataRepository.refreshUserData();
     } catch (_) {
       // Allow offline/local-first behavior even if refresh fails.
@@ -193,7 +203,7 @@ class _MainScreenState extends State<MainScreen> {
                       Text('Training Level: ${userData.trainingLevel.value?.name}'),
                       const SizedBox(height: 8),
                       ElevatedButton(
-                        onPressed: _refreshUserData,
+                        onPressed: () => _refreshUserData(force: true),
                         child: const Text('Refresh user data'),
                       ),
                     ],

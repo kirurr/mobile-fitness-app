@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/app/dependencies.dart';
@@ -515,7 +514,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         payload,
         triggerSync: false,
       );
-      unawaited(deps.syncService.syncAll());
       print('TrainingScreen._finishProgram: completed program updated');
 
       if (!mounted) return;
