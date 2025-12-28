@@ -4,6 +4,7 @@ import 'package:mobile_fitness_app/app/storage.dart';
 import 'package:mobile_fitness_app/subscription/model.dart';
 import 'package:mobile_fitness_app/user_payment/dto.dart';
 import 'package:mobile_fitness_app/user_subscription/dto.dart';
+import 'package:mobile_fitness_app/user_subscription/model.dart';
 
 class UserSubscriptionsScreen extends StatefulWidget {
   const UserSubscriptionsScreen({super.key});
@@ -19,6 +20,24 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
   int _selectedMonths = _monthOptions.first;
   bool _submitting = false;
   List<Subscription> _subscriptionsCache = [];
+  int? _userId;
+  bool _loadingUserId = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final userIdStr = await SecureStorageService().getUserId();
+    final userId = int.tryParse(userIdStr ?? '');
+    if (!mounted) return;
+    setState(() {
+      _userId = userId;
+      _loadingUserId = false;
+    });
+  }
 
   DateTime _addMonths(DateTime date, int months) {
     final int targetMonth = date.month + months;
@@ -38,7 +57,37 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
     );
   }
 
-  Future<void> _handleCreate(List<Subscription> subscriptions) async {
+  bool _isSubscriptionActive(UserSubscription sub, DateTime nowUtc) {
+    final start = DateTime.tryParse(sub.startDate);
+    final end = DateTime.tryParse(sub.endDate);
+    if (start == null || end == null) return false;
+    final startUtc = start.toUtc();
+    final endUtc = end.toUtc();
+    if (nowUtc.isBefore(startUtc)) return false;
+    if (nowUtc.isAfter(endUtc)) return false;
+    return true;
+  }
+
+  List<UserSubscription> _activeSubscriptionsForUser(
+    List<UserSubscription> items,
+    int? userId,
+  ) {
+    if (userId == null) return const [];
+    final nowUtc = DateTime.now().toUtc();
+    return items
+        .where(
+          (sub) =>
+              sub.userId == userId &&
+              !sub.pendingDelete &&
+              _isSubscriptionActive(sub, nowUtc),
+        )
+        .toList();
+  }
+
+  Future<void> _handleCreate(
+    List<Subscription> subscriptions,
+    List<UserSubscription> userSubscriptions,
+  ) async {
     if (_submitting) return;
 
     final subscription = subscriptions.firstWhere(
@@ -53,12 +102,27 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
       return;
     }
 
-    final userIdStr = await SecureStorageService().getUserId();
-    final userId = int.tryParse(userIdStr ?? '');
+    final userId = _userId;
     if (userId == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('User ID not found. Please sign in again.')),
+      );
+      return;
+    }
+
+    final nowUtc = DateTime.now().toUtc();
+    final alreadyActive = userSubscriptions.any((sub) {
+      final linkedId = sub.subscription.value?.id;
+      return sub.userId == userId &&
+          !sub.pendingDelete &&
+          linkedId == subscription.id &&
+          _isSubscriptionActive(sub, nowUtc);
+    });
+    if (alreadyActive) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subscription already active.')),
       );
       return;
     }
@@ -109,102 +173,230 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = DependencyScope.of(context).subscriptionRepository;
+    final userSubscriptionRepo =
+        DependencyScope.of(context).userSubscriptionRepository;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('User Subscriptions'),
       ),
-      body: StreamBuilder<List<Subscription>>(
-        stream: repo.watchSubscriptions(),
-        builder: (context, snapshot) {
-          final waiting = snapshot.connectionState == ConnectionState.waiting;
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+      body:
+          _loadingUserId
+              ? const Center(child: CircularProgressIndicator())
+              : StreamBuilder<List<UserSubscription>>(
+                stream: userSubscriptionRepo.watchUserSubscriptions(),
+                builder: (context, userSnapshot) {
+                  if (userSnapshot.hasError) {
+                    return Center(child: Text('Error: ${userSnapshot.error}'));
+                  }
 
-          final subscriptions = snapshot.data ?? _subscriptionsCache;
-          if (snapshot.hasData) {
-            _subscriptionsCache = subscriptions;
-          }
+                  final userSubscriptions = userSnapshot.data ?? const [];
+                  final activeSubscriptions = _activeSubscriptionsForUser(
+                    userSubscriptions,
+                    _userId,
+                  );
 
-          if (waiting && subscriptions.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+                  return StreamBuilder<List<Subscription>>(
+                    stream: repo.watchSubscriptions(),
+                    builder: (context, snapshot) {
+                      final waiting =
+                          snapshot.connectionState == ConnectionState.waiting;
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Choose a subscription and duration to create a user subscription.',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                if (subscriptions.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('No subscriptions available. Please sync data first.'),
-                  )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: subscriptions
-                        .map(
-                          (sub) => Card(
-                            child: ListTile(
-                              leading: Icon(
-                                _selectedSubscriptionId == sub.id
-                                    ? Icons.radio_button_checked
-                                    : Icons.radio_button_unchecked,
+                      final subscriptions =
+                          snapshot.data ?? _subscriptionsCache;
+                      if (snapshot.hasData) {
+                        _subscriptionsCache = subscriptions;
+                      }
+
+                      if (waiting && subscriptions.isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final activeIds = activeSubscriptions
+                          .map((sub) => sub.subscription.value?.id)
+                          .whereType<int>()
+                          .toSet();
+                      final selectedIsActive =
+                          _selectedSubscriptionId != null &&
+                          activeIds.contains(_selectedSubscriptionId);
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Active subscriptions',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
-                              title: Text(sub.name),
-                              subtitle: Text('Monthly cost: ${sub.monthlyCost}'),
-                              onTap: () => setState(() => _selectedSubscriptionId = sub.id),
                             ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Duration',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _monthOptions
-                      .map(
-                        (months) => ChoiceChip(
-                          label: Text('$months month${months > 1 ? 's' : ''}'),
-                          selected: _selectedMonths == months,
-                          onSelected: (_) => setState(() => _selectedMonths = months),
+                            const SizedBox(height: 12),
+                            if (activeSubscriptions.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Text('No active subscriptions.'),
+                              )
+                            else
+                              Column(
+                                children: activeSubscriptions
+                                    .map(
+                                      (sub) => Card(
+                                        child: ListTile(
+                                          title: Text(
+                                            sub.subscription.value?.name ?? '-',
+                                          ),
+                                          subtitle: Text(
+                                            'Start: ${sub.startDate}  End: ${sub.endDate}',
+                                          ),
+                                          trailing: IconButton(
+                                            icon: const Icon(Icons.delete),
+                                            onPressed:
+                                                _submitting
+                                                    ? null
+                                                    : () async {
+                                                      setState(
+                                                        () => _submitting = true,
+                                                      );
+                                                      try {
+                                                        await userSubscriptionRepo
+                                                            .delete(sub.id);
+                                                      } finally {
+                                                        if (mounted) {
+                                                          setState(
+                                                            () => _submitting = false,
+                                                          );
+                                                        }
+                                                      }
+                                                    },
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Choose a subscription and duration to create a user subscription.',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            if (subscriptions.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Text(
+                                  'No subscriptions available. Please sync data first.',
+                                ),
+                              )
+                            else
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: subscriptions
+                                    .map(
+                                      (sub) {
+                                        final isActive = activeIds.contains(
+                                          sub.id,
+                                        );
+                                        return Card(
+                                          child: ListTile(
+                                            leading: Icon(
+                                              _selectedSubscriptionId == sub.id
+                                                  ? Icons.radio_button_checked
+                                                  : Icons.radio_button_unchecked,
+                                            ),
+                                            title: Text(sub.name),
+                                            subtitle: Text(
+                                              isActive
+                                                  ? 'Active'
+                                                  : 'Monthly cost: ${sub.monthlyCost}',
+                                            ),
+                                            onTap:
+                                                isActive
+                                                    ? null
+                                                    : () => setState(
+                                                      () =>
+                                                          _selectedSubscriptionId =
+                                                              sub.id,
+                                                    ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                    .toList(),
+                              ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Duration',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: _monthOptions
+                                  .map(
+                                    (months) => ChoiceChip(
+                                      label: Text(
+                                        '$months month${months > 1 ? 's' : ''}',
+                                      ),
+                                      selected: _selectedMonths == months,
+                                      onSelected: (_) => setState(
+                                        () => _selectedMonths = months,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 24),
+                            if (selectedIsActive)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  'Subscription already active.',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed:
+                                    subscriptions.isEmpty ||
+                                            _submitting ||
+                                            selectedIsActive
+                                        ? null
+                                        : () => _handleCreate(
+                                          subscriptions,
+                                          userSubscriptions,
+                                        ),
+                                child:
+                                    _submitting
+                                        ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Text('Create'),
+                              ),
+                            ),
+                          ],
                         ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed:
-                        subscriptions.isEmpty || _submitting ? null : () => _handleCreate(subscriptions),
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Create'),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+                      );
+                    },
+                  );
+                },
+              ),
     );
   }
 }

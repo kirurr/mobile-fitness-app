@@ -73,6 +73,7 @@ class UserSubscriptionRemoteDataSource {
 
   Map<String, dynamic> _withIsoDates(UserSubscriptionPayloadDTO payload) {
     return {
+      if (payload.id != null) 'id': payload.id,
       'userId': payload.userId,
       'subscriptionId': payload.subscriptionId,
       'startDate': _toIsoString(payload.startDate),

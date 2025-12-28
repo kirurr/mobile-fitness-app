@@ -84,25 +84,20 @@ class UserSubscriptionRepository {
   }
 
   Future<void> delete(int id) async {
-    try {
-      await remote.delete(id);
-      await local.deleteById(id);
-    } catch (e) {
-      final existing = await local.getById(id);
-      if (existing != null) {
-        final updatedLocal = UserSubscription(
-          id: existing.id,
-          userId: existing.userId,
-          startDate: existing.startDate,
-          endDate: existing.endDate,
-          synced: false,
-          pendingDelete: true,
-          isLocalOnly: existing.isLocalOnly,
-        );
-        updatedLocal.subscription.value = existing.subscription.value;
-        await local.upsert(updatedLocal);
-      }
-    }
+    final existing = await local.getById(id);
+    if (existing == null) return;
+
+    final updatedLocal = UserSubscription(
+      id: existing.id,
+      userId: existing.userId,
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+      synced: false,
+      pendingDelete: true,
+      isLocalOnly: existing.isLocalOnly,
+    );
+    updatedLocal.subscription.value = existing.subscription.value;
+    await local.upsert(updatedLocal);
   }
 
   Future<void> sync() async {

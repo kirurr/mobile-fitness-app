@@ -324,7 +324,7 @@ class _MainScreenState extends State<MainScreen> {
                       builder: (_) => const UserSubscriptionsScreen(),
                     ),
                   ),
-                  child: const Text('Create User Subscription'),
+                  child: const Text('User Subscriptions'),
                 ),
               ),
             ),
