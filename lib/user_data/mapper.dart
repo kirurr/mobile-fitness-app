@@ -16,6 +16,8 @@ class UserDataMapper {
       age: dto.age,
       weight: dto.weight,
       height: dto.height,
+      synced: true,
+      isLocalOnly: false,
     );
 
     user.fitnessGoal.value = await isar.fitnessGoals.get(dto.fitnessGoalId);

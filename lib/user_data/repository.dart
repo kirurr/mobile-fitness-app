@@ -44,12 +44,13 @@ class UserDataRepository {
   }
 
   Future<void> saveLocalUserData(UserData payload) {
-    return local.save(payload);
+    return _saveLocalUserData(payload);
   }
 
   Future<void> syncLocalUserData() async {
     final localData = await local.getCurrent();
     if (localData == null) return;
+    if (localData.synced && !localData.isLocalOnly) return;
 
     await localData.fitnessGoal.load();
     await localData.trainingLevel.load();
@@ -75,5 +76,12 @@ class UserDataRepository {
       );
       await local.save(created);
     }
+  }
+
+  Future<void> _saveLocalUserData(UserData payload) async {
+    final existing = await local.getCurrent();
+    payload.synced = false;
+    payload.isLocalOnly = existing?.isLocalOnly ?? true;
+    await local.save(payload);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependencies.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
+import 'package:mobile_fitness_app/app/route_observer.dart';
 import 'auth/service.dart';
 import 'screens/main_screen.dart';
 import 'screens/sign_in_screen.dart';
@@ -21,11 +22,59 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const colorPrimary = Color(0xFF13EC49);
+    const colorBackgroundDark = Color(0xFF102215);
+    const colorSurfaceDark = Color(0xFF1C271E);
+    const colorTextSecondary = Color(0xFF9DB9A4);
+
+    final darkScheme = ColorScheme.fromSeed(
+      seedColor: colorPrimary,
+      brightness: Brightness.dark,
+    ).copyWith(
+      primary: colorPrimary,
+      secondary: colorPrimary,
+      surface: colorSurfaceDark,
+      onSurface: Colors.white,
+    );
+
     return MaterialApp(
       title: title,
+      navigatorObservers: [appRouteObserver],
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        fontFamily: 'Lexend',
+        colorScheme: darkScheme,
+        scaffoldBackgroundColor: colorBackgroundDark,
+        canvasColor: colorBackgroundDark,
+        cardColor: colorSurfaceDark,
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: Colors.white),
+          bodySmall: TextStyle(color: colorTextSecondary),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colorPrimary,
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       ),
+      themeMode: ThemeMode.dark,
       home: const AuthGate(),
     );
   }

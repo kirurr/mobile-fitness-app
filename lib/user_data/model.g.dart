@@ -19,8 +19,14 @@ const UserDataSchema = CollectionSchema(
   properties: {
     r'age': PropertySchema(id: 0, name: r'age', type: IsarType.long),
     r'height': PropertySchema(id: 1, name: r'height', type: IsarType.long),
-    r'name': PropertySchema(id: 2, name: r'name', type: IsarType.string),
-    r'weight': PropertySchema(id: 3, name: r'weight', type: IsarType.long),
+    r'isLocalOnly': PropertySchema(
+      id: 2,
+      name: r'isLocalOnly',
+      type: IsarType.bool,
+    ),
+    r'name': PropertySchema(id: 3, name: r'name', type: IsarType.string),
+    r'synced': PropertySchema(id: 4, name: r'synced', type: IsarType.bool),
+    r'weight': PropertySchema(id: 5, name: r'weight', type: IsarType.long),
   },
 
   estimateSize: _userDataEstimateSize,
@@ -69,8 +75,10 @@ void _userDataSerialize(
 ) {
   writer.writeLong(offsets[0], object.age);
   writer.writeLong(offsets[1], object.height);
-  writer.writeString(offsets[2], object.name);
-  writer.writeLong(offsets[3], object.weight);
+  writer.writeBool(offsets[2], object.isLocalOnly);
+  writer.writeString(offsets[3], object.name);
+  writer.writeBool(offsets[4], object.synced);
+  writer.writeLong(offsets[5], object.weight);
 }
 
 UserData _userDataDeserialize(
@@ -82,9 +90,11 @@ UserData _userDataDeserialize(
   final object = UserData(
     age: reader.readLong(offsets[0]),
     height: reader.readLong(offsets[1]),
-    name: reader.readString(offsets[2]),
+    isLocalOnly: reader.readBoolOrNull(offsets[2]) ?? false,
+    name: reader.readString(offsets[3]),
+    synced: reader.readBoolOrNull(offsets[4]) ?? true,
     userId: id,
-    weight: reader.readLong(offsets[3]),
+    weight: reader.readLong(offsets[5]),
   );
   return object;
 }
@@ -101,8 +111,12 @@ P _userDataDeserializeProp<P>(
     case 1:
       return (reader.readLong(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 3:
+      return (reader.readString(offset)) as P;
+    case 4:
+      return (reader.readBoolOrNull(offset) ?? true) as P;
+    case 5:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -335,6 +349,16 @@ extension UserDataQueryFilter
     });
   }
 
+  QueryBuilder<UserData, UserData, QAfterFilterCondition> isLocalOnlyEqualTo(
+    bool value,
+  ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'isLocalOnly', value: value),
+      );
+    });
+  }
+
   QueryBuilder<UserData, UserData, QAfterFilterCondition> nameEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -477,6 +501,16 @@ extension UserDataQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(property: r'name', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterFilterCondition> syncedEqualTo(
+    bool value,
+  ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'synced', value: value),
       );
     });
   }
@@ -660,6 +694,18 @@ extension UserDataQuerySortBy on QueryBuilder<UserData, UserData, QSortBy> {
     });
   }
 
+  QueryBuilder<UserData, UserData, QAfterSortBy> sortByIsLocalOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterSortBy> sortByIsLocalOnlyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserData, UserData, QAfterSortBy> sortByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -669,6 +715,18 @@ extension UserDataQuerySortBy on QueryBuilder<UserData, UserData, QSortBy> {
   QueryBuilder<UserData, UserData, QAfterSortBy> sortByNameDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterSortBy> sortBySynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterSortBy> sortBySyncedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.desc);
     });
   }
 
@@ -711,6 +769,18 @@ extension UserDataQuerySortThenBy
     });
   }
 
+  QueryBuilder<UserData, UserData, QAfterSortBy> thenByIsLocalOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterSortBy> thenByIsLocalOnlyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocalOnly', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserData, UserData, QAfterSortBy> thenByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -720,6 +790,18 @@ extension UserDataQuerySortThenBy
   QueryBuilder<UserData, UserData, QAfterSortBy> thenByNameDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterSortBy> thenBySynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QAfterSortBy> thenBySyncedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'synced', Sort.desc);
     });
   }
 
@@ -762,11 +844,23 @@ extension UserDataQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UserData, UserData, QDistinct> distinctByIsLocalOnly() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isLocalOnly');
+    });
+  }
+
   QueryBuilder<UserData, UserData, QDistinct> distinctByName({
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'name', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UserData, UserData, QDistinct> distinctBySynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'synced');
     });
   }
 
@@ -797,9 +891,21 @@ extension UserDataQueryProperty
     });
   }
 
+  QueryBuilder<UserData, bool, QQueryOperations> isLocalOnlyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isLocalOnly');
+    });
+  }
+
   QueryBuilder<UserData, String, QQueryOperations> nameProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'name');
+    });
+  }
+
+  QueryBuilder<UserData, bool, QQueryOperations> syncedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'synced');
     });
   }
 

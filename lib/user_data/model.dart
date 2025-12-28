@@ -11,6 +11,8 @@ class UserData {
   final int age;
   final int weight;
   final int height;
+  bool synced;
+  bool isLocalOnly;
 
   final fitnessGoal = IsarLink<FitnessGoal>();
   final trainingLevel = IsarLink<DifficultyLevel>();
@@ -21,5 +23,7 @@ class UserData {
     required this.age,
     required this.weight,
     required this.height,
+    this.synced = true,
+    this.isLocalOnly = false,
   });
 }
