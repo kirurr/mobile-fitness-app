@@ -22,7 +22,6 @@ class FitnessGoalRepository {
 
       await local.replaceAll(remoteGoals);
     } catch (e) {
-      print('Error refreshing goals: $e');
       rethrow;
     }
   }

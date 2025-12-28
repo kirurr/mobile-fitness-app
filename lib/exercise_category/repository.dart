@@ -25,7 +25,6 @@ class ExerciseCategoryRepository {
 
       await local.replaceAll(remoteCategories);
     } catch (e) {
-      print('Error refreshing exercise categories: $e');
       rethrow;
     }
   }

@@ -11,7 +11,11 @@ class ExerciseProgramLocalDataSource {
   ExerciseProgramLocalDataSource(this.db);
 
   Stream<List<ExerciseProgram>> watchAll() {
-    return _collection.where().watch(fireImmediately: true).asyncMap((
+    return _collection
+        .filter()
+        .pendingDeleteEqualTo(false)
+        .watch(fireImmediately: true)
+        .asyncMap((
       items,
     ) async {
       for (final item in items) {
@@ -22,7 +26,8 @@ class ExerciseProgramLocalDataSource {
   }
 
   Future<List<ExerciseProgram>> getAll() async {
-    final items = await _collection.where().findAll();
+    final items =
+        await _collection.filter().pendingDeleteEqualTo(false).findAll();
     for (final item in items) {
       await _loadLinks(item);
     }
@@ -176,11 +181,6 @@ class ExerciseProgramLocalDataSource {
       final incomingProgramExercises =
           programExercisesOverride ?? item.programExercises.toList();
       final shouldUpdateProgramExercises = incomingProgramExercises.isNotEmpty;
-      print(
-        'ExerciseProgramLocalDataSource._saveProgram: programId=${item.id}, '
-        'incomingExercises=${incomingProgramExercises.length}, '
-        'clearExisting=$clearExistingExercises',
-      );
       final difficulty =
           item.difficultyLevel.isNotEmpty
               ? item.difficultyLevel.first
@@ -203,10 +203,6 @@ class ExerciseProgramLocalDataSource {
                       .findAll())
                 ex.id: ex,
             };
-      print(
-        'ExerciseProgramLocalDataSource._saveProgram: '
-        'exerciseIds=${exerciseIds.length}, exerciseMap=${exerciseMap.length}',
-      );
 
       final createdProgramExercises = incomingProgramExercises
           .map(
@@ -221,10 +217,6 @@ class ExerciseProgramLocalDataSource {
             ),
           )
           .toList();
-      print(
-        'ExerciseProgramLocalDataSource._saveProgram: '
-        'createdProgramExercises=${createdProgramExercises.length}',
-      );
 
       await db.writeTxn(() async {
         final programId = await _collection.put(item);
@@ -241,17 +233,9 @@ class ExerciseProgramLocalDataSource {
 
           // 1) Create ProgramExercise rows first (no links yet).
           final peIds = await _programExercises.putAll(createdProgramExercises);
-          print(
-            'ExerciseProgramLocalDataSource._saveProgram: '
-            'putAllIds=${peIds.length}',
-          );
           final managedPEs = (await _programExercises.getAll(peIds))
               .whereType<ProgramExercise>()
               .toList();
-          print(
-            'ExerciseProgramLocalDataSource._saveProgram: '
-            'managedPEs=${managedPEs.length}',
-          );
 
           // 2) Attach relations to ProgramExercise and save links.
           for (final pe in managedPEs) {
@@ -291,13 +275,11 @@ class ExerciseProgramLocalDataSource {
           await managedProgram.programExercises.save();
         }
       });
-    } catch (e, stackTrace) {
-      print('ExerciseProgramLocalDataSource._saveProgram failed: $e');
-      print(stackTrace);
+    } catch (e) {
       rethrow;
     }
   }
-
+  
   Future<void> deleteById(int id) async {
     await db.writeTxn(() async {
       await _programExercises

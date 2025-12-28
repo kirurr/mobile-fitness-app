@@ -10,16 +10,21 @@ class UserSubscriptionLocalDataSource {
   UserSubscriptionLocalDataSource(this.db);
 
   Stream<List<UserSubscription>> watchAll() {
-    return _collection.where().watch(fireImmediately: true).asyncMap((items) async {
-      for (final item in items) {
-        await _loadLinks(item);
-      }
-      return items;
-    });
+    return _collection
+        .filter()
+        .pendingDeleteEqualTo(false)
+        .watch(fireImmediately: true)
+        .asyncMap((items) async {
+          for (final item in items) {
+            await _loadLinks(item);
+          }
+          return items;
+        });
   }
 
   Future<List<UserSubscription>> getAll() async {
-    final items = await _collection.where().findAll();
+    final items =
+        await _collection.filter().pendingDeleteEqualTo(false).findAll();
     for (final item in items) {
       await _loadLinks(item);
     }

@@ -51,27 +51,19 @@ class ExerciseProgramMapper {
 
       // -------- LINKS --------
 
-      print('difficultyLevelId=${dto.difficultyLevelId}');
       final difficultyLevel = await isar.difficultyLevels.get(
         dto.difficultyLevelId,
       );
-      if (difficultyLevel == null) {
-        print('difficultyLevelId=${dto.difficultyLevelId} not found');
-      } else {
-        print('difficultyLevel=$difficultyLevel');
+      if (difficultyLevel != null) {
         model.difficultyLevel
           ..clear()
           ..add(difficultyLevel);
         await model.difficultyLevel.save();
       }
 
-      print('subscriptionId=${dto.subscriptionId}');
       if (dto.subscriptionId != null) {
         final subscription = await isar.subscriptions.get(dto.subscriptionId!);
-        if (subscription == null) {
-          print('subscriptionId=${dto.subscriptionId} not found');
-        } else {
-          print('subscription=$subscription');
+        if (subscription != null) {
           model.subscription
             ..clear()
             ..add(subscription);

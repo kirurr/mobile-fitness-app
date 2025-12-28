@@ -40,7 +40,6 @@ class UserCompletedProgramRepository {
       }
       await local.replaceAll(remoteItems);
     } catch (e) {
-      print('Error refreshing completed programs: $e');
       rethrow;
     }
   }

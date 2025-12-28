@@ -98,6 +98,8 @@ class SyncService {
       await _syncWithRetry(userCompletedProgramRepository.sync);
       await _delayBetween();
       await _syncWithRetry(userCompletedExerciseRepository.sync);
+      await _delayBetween();
+      await _syncWithRetry(userDataRepository.syncLocalUserData);
     } finally {
       _isSyncing = false;
     }

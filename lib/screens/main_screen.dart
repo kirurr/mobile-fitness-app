@@ -8,6 +8,7 @@ import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
 import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
 import 'package:mobile_fitness_app/screens/planned_programs_screen.dart';
+import 'package:mobile_fitness_app/screens/user_profile_screen.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -195,6 +196,15 @@ class _MainScreenState extends State<MainScreen> {
                       ElevatedButton(
                         onPressed: () => _refreshUserData(force: true),
                         child: const Text('Refresh user data'),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const UserProfileScreen(),
+                          ),
+                        ),
+                        child: const Text('Open Profile'),
                       ),
                     ],
                   ),

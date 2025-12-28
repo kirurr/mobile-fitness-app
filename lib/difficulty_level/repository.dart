@@ -22,7 +22,6 @@ class DifficultyLevelRepository {
 
       await local.replaceAll(remoteLevels);
     } catch (e) {
-      print('Error refreshing difficulty levels: $e');
       rethrow;
     }
   }

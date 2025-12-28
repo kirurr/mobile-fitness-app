@@ -27,7 +27,6 @@ class UserSubscriptionRepository {
       final remoteItems = await remote.getAll();
       await local.replaceAll(remoteItems);
     } catch (e) {
-      print('Error refreshing user subscriptions: $e');
       rethrow;
     }
   }

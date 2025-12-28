@@ -28,7 +28,6 @@ class UserCompletedExerciseRepository {
       final remoteItems = await remote.getAll(completedProgramId);
       await local.replaceForProgram(completedProgramId, remoteItems);
     } catch (e) {
-      print('Error refreshing completed exercises: $e');
       rethrow;
     }
   }

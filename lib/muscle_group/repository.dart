@@ -25,7 +25,6 @@ class MuscleGroupRepository {
 
       await local.replaceAll(remoteGroups);
     } catch (e) {
-      print('Error refreshing muscle groups: $e');
       rethrow;
     }
   }

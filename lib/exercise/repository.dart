@@ -33,7 +33,6 @@ class ExerciseRepository {
 
       await local.replaceAll(remoteExercises);
     } catch (e) {
-      print('Error refreshing exercises: $e');
       rethrow;
     }
   }

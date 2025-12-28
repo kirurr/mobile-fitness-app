@@ -134,8 +134,7 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Plan saved')));
-    } catch (e, stackTrace) {
-      print('PlanProgramScreen._savePlan failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save plan: $e')),

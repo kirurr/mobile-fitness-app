@@ -36,7 +36,6 @@ class ExerciseProgramRepository {
       );
       await local.replaceAll(remoteItems);
     } catch (e) {
-      print('Error refreshing exercise programs: $e');
       rethrow;
     }
   }

@@ -18,6 +18,7 @@ class UserCompletedExerciseLocalDataSource {
     return _collection
         .filter()
         .completedProgramIdEqualTo(completedProgramId)
+        .pendingDeleteEqualTo(false)
         .watch(fireImmediately: true)
         .map((items) => items);
   }
@@ -28,6 +29,7 @@ class UserCompletedExerciseLocalDataSource {
     final items = await _collection
         .filter()
         .completedProgramIdEqualTo(completedProgramId)
+        .pendingDeleteEqualTo(false)
         .findAll();
     for (final item in items) {
       await _loadLinks(item);
@@ -137,6 +139,7 @@ class UserCompletedExerciseLocalDataSource {
     final exercises = await _collection
         .filter()
         .completedProgramIdEqualTo(completedProgramId)
+        .pendingDeleteEqualTo(false)
         .findAll();
     program.completedExercises
       ..clear()

@@ -12,7 +12,11 @@ class PlannedExerciseProgramLocalDataSource {
   PlannedExerciseProgramLocalDataSource(this.db);
 
   Stream<List<PlannedExerciseProgram>> watchAll() {
-    return _collection.where().watch(fireImmediately: true).asyncMap((
+    return _collection
+        .filter()
+        .pendingDeleteEqualTo(false)
+        .watch(fireImmediately: true)
+        .asyncMap((
       items,
     ) async {
       for (final item in items) {
@@ -23,7 +27,8 @@ class PlannedExerciseProgramLocalDataSource {
   }
 
   Future<List<PlannedExerciseProgram>> getAll() async {
-    final items = await _collection.where().findAll();
+    final items =
+        await _collection.filter().pendingDeleteEqualTo(false).findAll();
     for (final item in items) {
       await _loadLinks(item);
     }

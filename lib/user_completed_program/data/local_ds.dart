@@ -15,7 +15,11 @@ class UserCompletedProgramLocalDataSource {
   UserCompletedProgramLocalDataSource(this.db);
 
   Stream<List<UserCompletedProgram>> watchAll() {
-    return _collection.where().watch(fireImmediately: true).asyncMap((
+    return _collection
+        .filter()
+        .pendingDeleteEqualTo(false)
+        .watch(fireImmediately: true)
+        .asyncMap((
       items,
     ) async {
       for (final item in items) {
@@ -26,7 +30,8 @@ class UserCompletedProgramLocalDataSource {
   }
 
   Future<List<UserCompletedProgram>> getAll() async {
-    final items = await _collection.where().findAll();
+    final items =
+        await _collection.filter().pendingDeleteEqualTo(false).findAll();
     for (final item in items) {
       await _loadLinks(item);
     }
@@ -157,8 +162,6 @@ class UserCompletedProgramLocalDataSource {
         .filter()
         .completedProgramIdEqualTo(programId)
         .findAll();
-    print('attachCompletedExercises: found ${exercises.length} exercises');
-    print(exercises.toString());
     program.completedExercises
       ..clear()
       ..addAll(exercises);

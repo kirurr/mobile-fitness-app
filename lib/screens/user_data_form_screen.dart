@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/difficulty_level/model.dart';
 import 'package:mobile_fitness_app/fitness_goal/model.dart';
-import 'package:mobile_fitness_app/user_data/dto.dart';
+import 'package:mobile_fitness_app/user_data/model.dart';
+import 'package:mobile_fitness_app/app/storage.dart';
 
 class UserDataFormScreen extends StatefulWidget {
   const UserDataFormScreen({super.key});
@@ -51,20 +52,36 @@ class _UserDataFormScreenState extends State<UserDataFormScreen> {
     final deps = DependencyScope.of(context);
     final repo = deps.userDataRepository;
 
+    final userIdStr = await SecureStorageService().getUserId();
+    final userId = int.tryParse(userIdStr ?? '');
+    if (userId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User ID not found. Please sign in again.')),
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
     try {
-      final dto = CreateUserDataDTO(
+      final data = UserData(
+        userId: userId,
         name: _nameController.text.trim(),
         age: int.parse(_ageController.text),
         weight: int.parse(_weightController.text),
         height: int.parse(_heightController.text),
-        fitnessGoalId: selectedGoal.id,
-        trainingLevel: selectedDifficulty.id,
-      );
+      )
+        ..fitnessGoal.value = selectedGoal
+        ..trainingLevel.value = selectedDifficulty;
 
-      await repo.createUserData(dto);
+      await repo.saveLocalUserData(data);
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile saved locally. Sync to upload changes.'),
+          ),
+        );
         Navigator.of(context).pop();
       }
     } catch (e) {

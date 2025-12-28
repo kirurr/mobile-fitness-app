@@ -91,7 +91,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
     });
 
     try {
-      print('TrainingScreen._bootstrap: start');
       final deps = DependencyScope.of(context);
       final userData = await deps.userDataRepository.getLocalUserData();
       if (userData == null) {
@@ -101,12 +100,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         });
         return;
       }
-      print('TrainingScreen._bootstrap: userData loaded');
-
       final exercises = await deps.exerciseRepository.getLocalExercises();
-      print(
-        'TrainingScreen._bootstrap: exercises loaded (${exercises.length})',
-      );
       final difficultyId = userData.trainingLevel.value?.id;
       if (difficultyId == null) {
         setState(() {
@@ -115,12 +109,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         });
         return;
       }
-      print('TrainingScreen._bootstrap: difficultyId=$difficultyId');
-
       final programs = await deps.exerciseProgramRepository.getLocalPrograms();
-      print(
-        'TrainingScreen._bootstrap: programs loaded (${programs.length})',
-      );
       final userSubscriptions =
           await deps.userSubscriptionRepository.getLocalUserSubscriptions();
 
@@ -170,8 +159,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         program: selectedProgram,
         completedProgram: completedProgram,
       );
-    } catch (e, stackTrace) {
-      print('TrainingScreen._bootstrap failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = 'Failed to start training: $e';
@@ -323,8 +311,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Program updated')),
       );
-    } catch (e, stackTrace) {
-      print('TrainingScreen._saveProgramMeta failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to update program: $e')),
@@ -443,8 +430,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           ),
         ),
       );
-    } catch (e, stackTrace) {
-      print('TrainingScreen._saveExercise failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -485,7 +471,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
   Future<void> _finishProgram() async {
     final completedProgram = _completedProgram;
     if (completedProgram == null) {
-      print('TrainingScreen._finishProgram: no completedProgram');
       return;
     }
     final deps = DependencyScope.of(context);
@@ -495,7 +480,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
     });
 
     try {
-      print('TrainingScreen._finishProgram: start');
       final completedExercises = await deps.userCompletedExerciseRepository
           .getLocalCompletedExercises(completedProgram.id);
       final program = _program;
@@ -508,7 +492,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
       } else {
         await _syncProgramExercisesFromCompleted(deps);
       }
-      print('TrainingScreen._finishProgram: sync complete');
 
       final payload = UserCompletedProgramPayloadDTO(
         userId: completedProgram.userId,
@@ -522,7 +505,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         payload,
         triggerSync: false,
       );
-      print('TrainingScreen._finishProgram: completed program updated');
 
       if (!mounted) return;
       setState(() {
@@ -559,22 +541,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final completedProgram = _completedProgram;
     final userData = _userData;
     if (completedProgram == null || userData == null || _program == null) {
-      print(
-        'TrainingScreen._syncProgramExercisesFromCompleted: '
-        'missing state completedProgram=${completedProgram != null} '
-        'userData=${userData != null} program=${_program != null}',
-      );
       return;
     }
 
     final completedExercises = await deps.userCompletedExerciseRepository
         .getLocalCompletedExercises(completedProgram.id);
-
-    print(
-      'TrainingScreen._syncProgramExercisesFromCompleted: '
-      'completedProgramId=${completedProgram.id}, '
-      'completedExercises=${completedExercises.length}',
-    );
 
     if (completedExercises.isEmpty) return;
 
@@ -605,11 +576,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         })
         .where((p) => p.exerciseId != 0)
         .toList();
-    print(
-      'TrainingScreen._syncProgramExercisesFromCompleted: '
-      'payloadExercises=${exercisesPayload.length}',
-    );
-
     if (exercisesPayload.isEmpty) return;
 
     final payload = ExerciseProgramPayloadDTO(
@@ -913,8 +879,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         program: program,
         completedProgram: createdCompletedProgram,
       );
-    } catch (e, stackTrace) {
-      print('TrainingScreen._startSelectedProgram failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to start workout: $e')));
@@ -983,8 +948,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         program: createdProgram,
         completedProgram: createdCompletedProgram,
       );
-    } catch (e, stackTrace) {
-      print('TrainingScreen._startCustomProgram failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to start workout: $e')));
@@ -1528,8 +1492,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Exercise updated')));
-    } catch (e, stackTrace) {
-      print('TrainingScreen._saveInlineEdit failed: $e\n$stackTrace');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

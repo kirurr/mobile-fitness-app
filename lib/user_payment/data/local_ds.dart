@@ -9,11 +9,14 @@ class UserPaymentLocalDataSource {
   UserPaymentLocalDataSource(this.db);
 
   Stream<List<UserPayment>> watchAll() {
-    return _collection.where().watch(fireImmediately: true);
+    return _collection
+        .filter()
+        .pendingDeleteEqualTo(false)
+        .watch(fireImmediately: true);
   }
 
   Future<List<UserPayment>> getAll() {
-    return _collection.where().findAll();
+    return _collection.filter().pendingDeleteEqualTo(false).findAll();
   }
 
   Future<UserPayment?> getById(int id) async {
