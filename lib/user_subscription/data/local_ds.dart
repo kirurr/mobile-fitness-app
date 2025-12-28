@@ -53,6 +53,7 @@ class UserSubscriptionLocalDataSource {
   Future<void> upsert(UserSubscription item) async {
     await db.writeTxn(() async {
       await _collection.put(item);
+      await item.subscription.save();
     });
   }
 
@@ -88,6 +89,9 @@ class UserSubscriptionLocalDataSource {
     await db.writeTxn(() async {
       await _collection.clear();
       await _collection.putAll(items);
+      for (final item in items) {
+        await item.subscription.save();
+      }
     });
   }
 

@@ -63,9 +63,9 @@ ExerciseProgram _buildProgram({
     description: '$name description',
   );
 
-  program.difficultyLevel.value = difficulty;
+  program.difficultyLevel.add(difficulty);
   if (subscription != null) {
-    program.subscription.value = subscription;
+    program.subscription.add(subscription);
   }
   program.fitnessGoals.addAll(goals);
 
@@ -190,8 +190,10 @@ void main() {
       expect(programs.length, 1);
       final program = programs.first;
       expect(program.id, 10);
-      expect(program.difficultyLevel.value?.id, difficulty.id);
-      expect(program.subscription.value?.id, subscription.id);
+      expect(program.difficultyLevel.isNotEmpty, isTrue);
+      expect(program.difficultyLevel.first.id, difficulty.id);
+      expect(program.subscription.isNotEmpty, isTrue);
+      expect(program.subscription.first.id, subscription.id);
       expect(program.fitnessGoals.length, 1);
       expect(program.programExercises.length, 1);
       expect(program.programExercises.first.exerciseId, exercise.id);

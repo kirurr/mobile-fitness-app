@@ -47,7 +47,6 @@ class UserSubscriptionRepository {
     );
     await _attachSubscription(created, payload.subscriptionId);
     await local.upsert(created);
-    unawaited(sync());
   }
 
   Future<void> update(int id, UserSubscriptionPayloadDTO payload) async {
@@ -64,7 +63,6 @@ class UserSubscriptionRepository {
       );
       await _attachSubscription(created, payload.subscriptionId);
       await local.upsert(created);
-      unawaited(sync());
       return;
     }
 
@@ -83,7 +81,6 @@ class UserSubscriptionRepository {
       await _attachSubscription(updatedLocal, payload.subscriptionId);
     }
     await local.upsert(updatedLocal);
-    unawaited(sync());
   }
 
   Future<void> delete(int id) async {

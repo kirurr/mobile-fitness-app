@@ -4,6 +4,8 @@ import 'package:mobile_fitness_app/app/dependencies.dart';
 import 'package:mobile_fitness_app/exercise/model.dart';
 import 'package:mobile_fitness_app/exercise_program/dto.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
+import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
+import 'package:mobile_fitness_app/user_subscription/model.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/dto.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
 import 'package:mobile_fitness_app/user_completed_program/dto.dart';
@@ -27,6 +29,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   List<Exercise> _exercises = [];
   List<ExerciseProgram> _availablePrograms = [];
   ExerciseProgram? _selectedProgram;
+  List<UserSubscription> _userSubscriptions = [];
   List<UserCompletedExercise> _currentCompletedExercises = [];
   final Map<int, _ExerciseEditors> _editControllers = {};
   List<UserCompletedExercise> _completedCache = [];
@@ -118,6 +121,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
       print(
         'TrainingScreen._bootstrap: programs loaded (${programs.length})',
       );
+      final userSubscriptions =
+          await deps.userSubscriptionRepository.getLocalUserSubscriptions();
 
       final completedProgramId = widget.completedProgramId;
       final initialProgramId = widget.initialProgramId;
@@ -156,6 +161,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         _completedProgram = completedProgram;
         _currentCompletedExercises = completedExercises;
         _completedCache = completedExercises;
+        _userSubscriptions = userSubscriptions;
         _selectedExerciseId = null;
         _editControllers.clear();
         _loading = false;
@@ -849,6 +855,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final userData = _userData;
     final program = _selectedProgram;
     if (userData == null || program == null) return;
+    if (!_hasSubscriptionAccess(program)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subscription required to start workout')),
+      );
+      return;
+    }
 
     setState(() {
       _startingProgram = true;
@@ -1084,6 +1096,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     final selected = _selectedProgram;
     final hasExercises = selected?.programExercises.isNotEmpty ?? false;
+    final requiredSubscription =
+        selected?.subscription.isNotEmpty == true
+            ? selected!.subscription.first
+            : null;
+    final hasSubscriptionAccess =
+        selected != null ? _hasSubscriptionAccess(selected) : false;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1110,6 +1128,29 @@ class _TrainingScreenState extends State<TrainingScreen> {
               setState(() => _selectedProgram = program);
             },
           ),
+          if (requiredSubscription != null && !hasSubscriptionAccess) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Requires subscription: ${requiredSubscription.name}',
+              style: const TextStyle(color: Colors.red),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const UserSubscriptionsScreen(),
+                    ),
+                  );
+                },
+                child: Text(
+                  'Оформить подписку ${requiredSubscription.name}',
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _selectedProgram == null
               ? const Text('Select a program to start.')
@@ -1127,7 +1168,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed:
-                  _startingProgram || !hasExercises ? null : _startSelectedProgram,
+                  _startingProgram || !hasExercises || !hasSubscriptionAccess
+                      ? null
+                      : _startSelectedProgram,
               child: _startingProgram
                   ? const SizedBox(
                       width: 20,
@@ -1340,6 +1383,34 @@ class _TrainingScreenState extends State<TrainingScreen> {
       parts.add('${item.weight} weight');
     }
     return parts.join(', ');
+  }
+
+  bool _hasSubscriptionAccess(ExerciseProgram program) {
+    final requiredSubscription =
+        program.subscription.isNotEmpty ? program.subscription.first : null;
+    if (requiredSubscription == null) return true;
+    final userData = _userData;
+    if (userData == null) return false;
+
+    final nowUtc = DateTime.now().toUtc();
+    for (final sub in _userSubscriptions) {
+      if (sub.userId != userData.userId || sub.pendingDelete) continue;
+      final linked = sub.subscription.value;
+      if (linked == null || linked.id != requiredSubscription.id) continue;
+      if (_isSubscriptionActive(sub, nowUtc)) return true;
+    }
+    return false;
+  }
+
+  bool _isSubscriptionActive(UserSubscription sub, DateTime nowUtc) {
+    final start = DateTime.tryParse(sub.startDate);
+    final end = DateTime.tryParse(sub.endDate);
+    if (start == null || end == null) return false;
+    final startUtc = start.toUtc();
+    final endUtc = end.toUtc();
+    if (nowUtc.isBefore(startUtc)) return false;
+    if (nowUtc.isAfter(endUtc)) return false;
+    return true;
   }
 
   Future<ExerciseProgram?> _getLocalProgramById(

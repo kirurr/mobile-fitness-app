@@ -45,7 +45,6 @@ class UserPaymentRepository {
       isLocalOnly: true,
     );
     await local.upsert(created);
-    unawaited(sync());
   }
 
   Future<void> update(int id, UserPaymentPayloadDTO payload) async {
@@ -58,12 +57,11 @@ class UserPaymentRepository {
         amount: payload.amount,
         synced: false,
         pendingDelete: false,
-        isLocalOnly: true,
-      );
-      await local.upsert(created);
-      unawaited(sync());
-      return;
-    }
+      isLocalOnly: true,
+    );
+    await local.upsert(created);
+    return;
+  }
 
     final updatedLocal = UserPayment(
       id: existing.id,
@@ -75,7 +73,6 @@ class UserPaymentRepository {
       isLocalOnly: existing.isLocalOnly,
     );
     await local.upsert(updatedLocal);
-    unawaited(sync());
   }
 
   Future<void> delete(int id) async {
