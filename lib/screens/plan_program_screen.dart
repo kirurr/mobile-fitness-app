@@ -3,6 +3,7 @@ import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/dto.dart';
+import 'package:mobile_fitness_app/widgets/program_card.dart';
 
 class PlanProgramScreen extends StatefulWidget {
   final int? plannedProgramId;
@@ -184,27 +185,37 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Program',
+                        'Choose a program',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<ExerciseProgram>(
-                        value: _selectedProgram ?? resolved,
-                        items: programs
-                            .map(
-                              (program) => DropdownMenuItem<ExerciseProgram>(
-                                value: program,
-                                child: Text(program.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (program) {
-                          setState(() => _selectedProgram = program);
-                        },
-                        decoration: const InputDecoration(labelText: 'Program'),
+                      const SizedBox(height: 12),
+                      Column(
+                        children: programs.map((program) {
+                          final subscription =
+                              program.subscription.isNotEmpty
+                                  ? program.subscription.first
+                                  : null;
+                          final difficulty =
+                              program.difficultyLevel.isNotEmpty
+                                  ? program.difficultyLevel.first
+                                  : null;
+                          return ProgramCard(
+                            title: program.name,
+                            description: program.description,
+                            durationText: _formatProgramDuration(program),
+                            exerciseCount: program.programExercises.length,
+                            subscriptionName: subscription?.name ?? 'Free',
+                            isFree: subscription == null,
+                            difficultyName: difficulty?.name ?? '-',
+                            isSelected: resolved?.id == program.id,
+                            onTap: () => setState(
+                              () => _selectedProgram = program,
+                            ),
+                          );
+                        }).toList(),
                       ),
                       const SizedBox(height: 16),
                       const Text(
@@ -287,8 +298,45 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
   }
 
   String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${date.year}-${two(date.month)}-${two(date.day)} '
-        '${two(date.hour)}:${two(date.minute)}';
+    final month = (date.month >= 1 && date.month <= 12)
+        ? months[date.month - 1]
+        : '??';
+    return '$month ${date.day}, ${two(date.hour)}:${two(date.minute)}';
+  }
+
+  String _formatProgramDuration(ExerciseProgram program) {
+    final exercises = program.programExercises.toList();
+    int totalSeconds = 0;
+    for (final item in exercises) {
+      final sets = item.sets;
+      final duration = item.duration ?? 0;
+      final rest = item.restDuration;
+      totalSeconds += duration * sets;
+      if (rest > 0 && sets > 1) {
+        totalSeconds += rest * (sets - 1);
+      }
+    }
+
+    final totalMinutes = (totalSeconds / 60).round();
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours <= 0) return '${minutes} m';
+    if (minutes == 0) return '${hours} h';
+    return '${hours} h ${minutes} m';
   }
 }

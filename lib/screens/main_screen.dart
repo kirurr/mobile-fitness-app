@@ -20,6 +20,7 @@ import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
 import 'package:mobile_fitness_app/screens/planned_programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_profile_screen.dart';
+import 'package:mobile_fitness_app/widgets/app_bottom_nav.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -288,64 +289,7 @@ class _MainScreenState extends State<MainScreen>
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 56,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildBottomNavItem(
-                    context,
-                    icon: Icons.home,
-                    label: 'Home',
-                    onTap: () {},
-                  ),
-                ),
-                Expanded(
-                  child: _buildBottomNavItem(
-                    context,
-                    icon: Icons.calendar_today,
-                    label: 'Schedules',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PlannedProgramsScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 56),
-                Expanded(
-                  child: _buildBottomNavItem(
-                    context,
-                    icon: Icons.history,
-                    label: 'History',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const UserCompletedProgramsScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: _buildBottomNavItem(
-                    context,
-                    icon: Icons.person,
-                    label: 'Profile',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const UserProfileScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 0),
     );
   }
 
@@ -768,16 +712,17 @@ class _MainScreenState extends State<MainScreen>
                 )
               else
                 Column(
-                  children: weekItems
-                      .map(
-                        (entry) => _buildScheduleCard(
-                          context,
-                          entry.item,
-                          entry.date,
-                          programById[entry.item.programId],
-                        ),
-                      )
-                      .toList(),
+                  children: weekItems.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    return _buildScheduleCard(
+                      context,
+                      item.item,
+                      item.date,
+                      programById[item.item.programId],
+                      showConnector: index < weekItems.length - 1,
+                    );
+                  }).toList(),
                 ),
             ],
           ),
@@ -790,66 +735,151 @@ class _MainScreenState extends State<MainScreen>
     BuildContext context,
     PlannedExerciseProgram item,
     DateTime date,
-    ExerciseProgram? program,
-  ) {
+    ExerciseProgram? program, {
+    required bool showConnector,
+  }) {
     final colorPrimary = Theme.of(context).colorScheme.primary;
     final programName = item.program.value?.name ?? program?.name ?? 'Program';
     final badgeText = _formatScheduleBadge(date);
     final badgeIsToday = _isSameDay(date, DateTime.now());
+    final startTime = _formatTime(date);
     final durationText = _formatProgramDuration(program);
+    final exerciseCount = program?.programExercises.length ?? 0;
 
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TrainingStartScreen(
-            initialProgramId: item.programId,
-          ),
-        ),
-      ),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    programName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+            SizedBox(
+              width: 72,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeIsToday
+                          ? colorPrimary.withOpacity(0.2)
+                          : Colors.white10,
+                      borderRadius: BorderRadius.circular(10),
+                      border: badgeIsToday
+                          ? Border.all(color: colorPrimary)
+                          : null,
+                    ),
+                    child: Text(
+                      badgeIsToday ? 'Today' : badgeText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: badgeIsToday ? colorPrimary : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeIsToday ? colorPrimary : Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  badgeText,
-                  style: TextStyle(
-                      color: badgeIsToday ? Colors.black : Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  if (showConnector) ...[
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              durationText,
-              style: const TextStyle(color: Colors.white70),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InkWell(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TrainingStartScreen(
+                      initialProgramId: item.programId,
+                    ),
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              programName,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              startTime,
+                              style: TextStyle(
+                                color: colorPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  size: 16,
+                                  color: Colors.white60,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  durationText,
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                const Icon(
+                                  Icons.fitness_center,
+                                  size: 16,
+                                  color: Colors.white60,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$exerciseCount exercises',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white54,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -1262,14 +1292,7 @@ class _MainScreenState extends State<MainScreen>
   String _formatScheduleBadge(DateTime date) {
     final now = DateTime.now();
     if (_isSameDay(date, now)) {
-      return _formatTime(date);
-    }
-
-    final tomorrow = DateTime(now.year, now.month, now.day).add(
-      const Duration(days: 1),
-    );
-    if (_isSameDay(date, tomorrow)) {
-      return 'tomorrow';
+      return 'Today';
     }
 
     return _formatDate(date);
@@ -1326,38 +1349,6 @@ class _MainScreenState extends State<MainScreen>
         '${two(date.hour)}:${two(date.minute)}';
   }
 
-  Widget _buildBottomNavItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final color = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _PlannedWeekItem {
