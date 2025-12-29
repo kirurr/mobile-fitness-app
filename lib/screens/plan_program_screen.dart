@@ -345,8 +345,8 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
     final totalMinutes = (totalSeconds / 60).round();
     final hours = totalMinutes ~/ 60;
     final minutes = totalMinutes % 60;
-    if (hours <= 0) return '${minutes} m';
-    if (minutes == 0) return '${hours} h';
-    return '${hours} h ${minutes} m';
+    if (hours <= 0) return '$minutes m';
+    if (minutes == 0) return '$hours h';
+    return '$hours h $minutes m';
   }
 }

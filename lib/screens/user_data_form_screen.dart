@@ -4,6 +4,7 @@ import 'package:mobile_fitness_app/difficulty_level/model.dart';
 import 'package:mobile_fitness_app/fitness_goal/model.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:mobile_fitness_app/app/storage.dart';
+import 'package:mobile_fitness_app/auth/service.dart';
 
 class UserDataFormScreen extends StatefulWidget {
   const UserDataFormScreen({super.key});
@@ -14,6 +15,7 @@ class UserDataFormScreen extends StatefulWidget {
 
 class _UserDataFormScreenState extends State<UserDataFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final AuthService _authService = AuthService();
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
   final _weightController = TextEditingController();
@@ -82,7 +84,9 @@ class _UserDataFormScreenState extends State<UserDataFormScreen> {
             content: Text('Profile saved locally. Sync to upload changes.'),
           ),
         );
-        Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -105,6 +109,12 @@ class _UserDataFormScreenState extends State<UserDataFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Complete Profile'),
+        actions: [
+          TextButton(
+            onPressed: _submitting ? null : _authService.signout,
+            child: const Text('Sign out'),
+          ),
+        ],
       ),
       body: StreamBuilder<List<FitnessGoal>>(
         stream: goalRepo.watchGoals(),

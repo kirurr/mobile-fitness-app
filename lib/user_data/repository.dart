@@ -62,8 +62,24 @@ class UserDataRepository {
       final updated = await remote.update(localData);
       await local.save(updated);
     } catch (e) {
-      if (e is! ApiError || e.code != 400) rethrow;
+      if (e is! ApiError || (e.code != 400 && e.code != 404)) rethrow;
+      await _createOrUpdate(localData, fitnessGoalId, trainingLevelId);
+    }
+  }
 
+  Future<void> _saveLocalUserData(UserData payload) async {
+    final existing = await local.getCurrent();
+    payload.synced = false;
+    payload.isLocalOnly = existing?.isLocalOnly ?? true;
+    await local.save(payload);
+  }
+
+  Future<void> _createOrUpdate(
+    UserData localData,
+    int fitnessGoalId,
+    int trainingLevelId,
+  ) async {
+    try {
       final created = await remote.create(
         CreateUserDataDTO(
           name: localData.name,
@@ -75,13 +91,10 @@ class UserDataRepository {
         ),
       );
       await local.save(created);
+    } catch (e) {
+      if (e is! ApiError || (e.code != 400 && e.code != 409)) rethrow;
+      final updated = await remote.update(localData);
+      await local.save(updated);
     }
-  }
-
-  Future<void> _saveLocalUserData(UserData payload) async {
-    final existing = await local.getCurrent();
-    payload.synced = false;
-    payload.isLocalOnly = existing?.isLocalOnly ?? true;
-    await local.save(payload);
   }
 }

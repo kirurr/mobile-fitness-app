@@ -32,7 +32,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen>
     with RouteAware, TickerProviderStateMixin {
   final AuthService _authService = AuthService();
-  bool _promptedUserData = false;
   bool _checkingUserData = true;
   bool _routeSubscribed = false;
   int? _selectedDifficultyId;
@@ -135,19 +134,10 @@ class _MainScreenState extends State<MainScreen>
   }
 
   Future<void> _checkUserDataOnStart() async {
-    if (_promptedUserData) return;
     final deps = DependencyScope.of(context);
     final userRepo = deps.userDataRepository;
     try {
-      final first = await userRepo.watchUserData().first;
-      if (first == null && mounted) {
-        _promptedUserData = true;
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const UserDataFormScreen(),
-          ),
-        );
-      }
+      await userRepo.watchUserData().first;
     } finally {
       if (mounted) {
         setState(() {
@@ -169,84 +159,92 @@ class _MainScreenState extends State<MainScreen>
     final userRepo = deps.userDataRepository;
     final seed = widget.seedData;
 
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Wellcome back',
-                    style: TextStyle(fontSize: 12, color: Colors.white70),
-                  ),
-                  StreamBuilder<UserData?>(
-                    stream: userRepo.watchUserData(),
-                    initialData: seed?.userData,
-                    builder: (context, snapshot) {
-                      final name = snapshot.data?.name ?? '';
-                      return Text(
-                        name.isEmpty ? ' ' : name,
+    return StreamBuilder<UserData?>(
+      stream: userRepo.watchUserData(),
+      initialData: seed?.userData,
+      builder: (context, snapshot) {
+        if (snapshot.data == null) {
+          return const UserDataFormScreen();
+        }
+        return Scaffold(
+          appBar: AppBar(
+            titleSpacing: 16,
+            title: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Wellcome back',
+                        style: TextStyle(fontSize: 12, color: Colors.white70),
+                      ),
+                      Text(
+                        (snapshot.data?.name ?? '').isEmpty
+                            ? ' '
+                            : snapshot.data!.name,
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: () => AppShell.of(context)?.setIndex(3),
-              icon: const Icon(Icons.person),
-              tooltip: 'Profile',
-            ),
-          ],
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            _buildActiveWorkoutBanner(context),
-            _buildFastStartCard(context),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'My weekly progress',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  InkWell(
-                    onTap: () => AppShell.of(context)?.setIndex(2),
-                    child: Text(
-                      'History',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                IconButton(
+                  onPressed: () => AppShell.of(context)?.setIndex(3),
+                  icon: const Icon(Icons.person),
+                  tooltip: 'Profile',
+                ),
+              ],
             ),
-            _buildProgressCard(context),
-            const SizedBox(height: 12),
-            _buildSchedulesSection(context),
-            const SizedBox(height: 12),
-            _buildProgramsSection(context),
-            const SizedBox(height: 12),
-            _buildSubscriptionsSection(context),
-            const SizedBox(height: 12),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+          ),
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                _buildActiveWorkoutBanner(context),
+                _buildFastStartCard(context),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'My weekly progress',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => AppShell.of(context)?.setIndex(2),
+                        child: Text(
+                          'History',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildProgressCard(context),
+                const SizedBox(height: 12),
+                _buildSchedulesSection(context),
+                const SizedBox(height: 12),
+                _buildProgramsSection(context),
+                const SizedBox(height: 12),
+                _buildSubscriptionsSection(context),
+                const SizedBox(height: 12),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -731,7 +729,7 @@ class _MainScreenState extends State<MainScreen>
                   builder: (context, snapshot) {
                     final items = snapshot.data ?? const <DifficultyLevel>[];
                     return DropdownButtonFormField<int?>(
-                      value: _selectedDifficultyId,
+                      initialValue: _selectedDifficultyId,
                       decoration: const InputDecoration(
                         labelText: 'Difficulty',
                       ),
@@ -764,7 +762,7 @@ class _MainScreenState extends State<MainScreen>
                   builder: (context, snapshot) {
                     final items = snapshot.data ?? const <Subscription>[];
                     return DropdownButtonFormField<int?>(
-                      value: _selectedSubscriptionId,
+                      initialValue: _selectedSubscriptionId,
                       decoration: const InputDecoration(
                         labelText: 'Subscription',
                       ),
@@ -1013,9 +1011,9 @@ class _MainScreenState extends State<MainScreen>
     final totalMinutes = (totalSeconds / 60).round();
     final hours = totalMinutes ~/ 60;
     final minutes = totalMinutes % 60;
-    if (hours <= 0) return '${minutes} m';
-    if (minutes == 0) return '${hours} h';
-    return '${hours} h ${minutes} m';
+    if (hours <= 0) return '$minutes m';
+    if (minutes == 0) return '$hours h';
+    return '$hours h $minutes m';
   }
 
   Stream<_ScheduleData> _watchScheduleData(

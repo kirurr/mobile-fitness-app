@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/auth/model.dart';
 import 'package:mobile_fitness_app/app/dio.dart';
+import 'package:mobile_fitness_app/app/isar.dart';
 import 'package:mobile_fitness_app/app/navigation.dart';
 import 'package:mobile_fitness_app/app/storage.dart';
 import 'package:mobile_fitness_app/screens/sign_in_screen.dart';
@@ -46,10 +47,9 @@ class AuthService {
   }
 
   Future<void> signout() async {
-    await _storage.deleteToken();
-    await _storage.deleteUserId();
-    await _storage.deleteEmail();
-    await _storage.deletePassword();
+    try {
+      await _clearLocalData();
+    } catch (_) {}
     final navigator = appNavigatorKey.currentState;
     if (navigator != null) {
       navigator.pushAndRemoveUntil(
@@ -57,6 +57,14 @@ class AuthService {
         (_) => false,
       );
     }
+  }
+
+  Future<void> _clearLocalData() async {
+    await _storage.deleteAll();
+    final isar = await IsarService().openDB();
+    await isar.writeTxn(() async {
+      await isar.clear();
+    });
   }
 
   Future<bool> isLoggedIn() async {

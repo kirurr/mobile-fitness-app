@@ -272,12 +272,12 @@ class ExerciseProgramLocalDataSource {
             ..addAll(managedPEs);
         }
         managedProgram.difficultyLevel
-          ..clear();
+          .clear();
         if (difficulty != null) {
           managedProgram.difficultyLevel.add(difficulty);
         }
         managedProgram.subscription
-          ..clear();
+          .clear();
         if (subscription != null) {
           managedProgram.subscription.add(subscription);
         }

@@ -9,6 +9,7 @@ import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
 import 'package:mobile_fitness_app/screens/user_profile_screen.dart';
+import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:mobile_fitness_app/widgets/app_bottom_nav.dart';
 
 class AppShell extends StatefulWidget {
@@ -26,7 +27,6 @@ class AppShellState extends State<AppShell> with RouteAware {
   int _currentIndex = 0;
   bool _loading = true;
   String? _error;
-  bool _promptedUserData = false;
   MainScreenSeedData? _mainSeed;
   bool _routeSubscribed = false;
   bool _syncing = false;
@@ -69,6 +69,13 @@ class AppShellState extends State<AppShell> with RouteAware {
     final deps = DependencyScope.of(context);
     try {
       final hasCoreData = await _preloadLocalData(deps);
+      if (_mainSeed?.userData == null) {
+        try {
+          await deps.userDataRepository.refreshUserData();
+        } catch (_) {
+          // Allow offline/local-first behavior even if refresh fails.
+        }
+      }
       if (!hasCoreData) {
         await deps.syncService.refreshAll();
         await _preloadLocalData(deps);
@@ -76,7 +83,6 @@ class AppShellState extends State<AppShell> with RouteAware {
       await _primeStreams(deps);
       if (!mounted) return;
       setState(() => _loading = false);
-      _ensureUserData(deps);
       unawaited(_syncOnTabEntry(refresh: hasCoreData));
     } catch (e) {
       if (!mounted) return;
@@ -161,24 +167,6 @@ class AppShellState extends State<AppShell> with RouteAware {
     );
   }
 
-  Future<void> _ensureUserData(Dependencies deps) async {
-    if (_promptedUserData) return;
-    try {
-      final first = await deps.userDataRepository.watchUserData().first;
-      if (!mounted) return;
-      if (first == null) {
-        _promptedUserData = true;
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const UserDataFormScreen(),
-          ),
-        );
-      }
-    } catch (_) {
-      // ignore
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -192,6 +180,20 @@ class AppShellState extends State<AppShell> with RouteAware {
       );
     }
 
+    final deps = DependencyScope.of(context);
+    return StreamBuilder<UserData?>(
+      stream: deps.userDataRepository.watchUserData(),
+      initialData: _mainSeed?.userData,
+      builder: (context, snapshot) {
+        if (snapshot.data == null) {
+          return const UserDataFormScreen();
+        }
+        return _buildShell(context);
+      },
+    );
+  }
+
+  Widget _buildShell(BuildContext context) {
     final pages = <Widget>[
       MainScreen(skipBootstrap: true, seedData: _mainSeed),
       const PlannedProgramsScreen(),

@@ -300,12 +300,12 @@ class ExerciseProgramRepository {
     final difficulty = await local.db.difficultyLevels.get(
       payload.difficultyLevelId,
     );
-    program.difficultyLevel..clear();
+    program.difficultyLevel.clear();
     if (difficulty != null) {
       program.difficultyLevel.add(difficulty);
     }
 
-    program.subscription..clear();
+    program.subscription.clear();
     if (payload.subscriptionId != null) {
       final subscription = await local.db.subscriptions.get(
         payload.subscriptionId!,

@@ -256,9 +256,9 @@ class CompletedTrainingScreen extends StatelessWidget {
       if (totalMinutes < 1) return '< 1 min';
       final hours = totalMinutes ~/ 60;
       final minutes = totalMinutes % 60;
-      if (hours <= 0) return '${minutes} min';
-      if (minutes == 0) return '${hours} h';
-      return '${hours} h ${minutes} min';
+      if (hours <= 0) return '$minutes min';
+      if (minutes == 0) return '$hours h';
+      return '$hours h $minutes min';
     } catch (_) {
       return '-';
     }

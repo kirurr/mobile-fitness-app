@@ -972,7 +972,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<int?>(
-                          value: selectedMuscleId,
+                          initialValue: selectedMuscleId,
                           decoration:
                               const InputDecoration(labelText: 'Muscle group'),
                           items: [
