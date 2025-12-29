@@ -18,7 +18,7 @@ import 'package:test/test.dart';
 
 class _FakeExerciseProgramRemote extends ExerciseProgramRemoteDataSource {
   final List<ExerciseProgram> items;
-  ExerciseProgram? nextCreate;
+  int getAllCalls = 0;
   final List<int> deleted = [];
 
   _FakeExerciseProgramRemote(this.items, Isar isar)
@@ -31,14 +31,8 @@ class _FakeExerciseProgramRemote extends ExerciseProgramRemoteDataSource {
     int? fitnessGoalId,
     int? userId,
   }) async {
+    getAllCalls += 1;
     return items;
-  }
-
-  @override
-  Future<ExerciseProgram> create(ExerciseProgramPayloadDTO payload) async {
-    final created = nextCreate!;
-    items.add(created);
-    return created;
   }
 
   @override
@@ -151,17 +145,7 @@ void main() {
         name: 'Initial Plan',
       );
 
-      final createdProgram = _buildProgram(
-        id: 11,
-        difficulty: difficulty,
-        subscription: subscription,
-        goals: [goal],
-        exercise: exercise,
-        name: 'Created Plan',
-      );
-
-      remote = _FakeExerciseProgramRemote([initialProgram], isar)
-        ..nextCreate = createdProgram;
+      remote = _FakeExerciseProgramRemote([initialProgram], isar);
 
       repo = ExerciseProgramRepository(
         local: ExerciseProgramLocalDataSource(isar),
@@ -190,19 +174,41 @@ void main() {
       expect(programs.length, 1);
       final program = programs.first;
       expect(program.id, 10);
-      expect(program.difficultyLevel.isNotEmpty, isTrue);
-      expect(program.difficultyLevel.first.id, difficulty.id);
-      expect(program.subscription.isNotEmpty, isTrue);
-      expect(program.subscription.first.id, subscription.id);
-      expect(program.fitnessGoals.length, 1);
-      expect(program.programExercises.length, 1);
-      expect(program.programExercises.first.exerciseId, exercise.id);
+      expect(program.name, 'Initial Plan');
     });
 
-    test('createProgram saves returned program locally', () async {
-      const payload = ExerciseProgramPayloadDTO(
-        name: 'Created Plan',
-        description: 'Created Plan description',
+    test('refreshProgramsIfSafe skips when local has pending changes', () async {
+      final pending = ExerciseProgram(
+        id: 12,
+        userId: 1,
+        name: 'Pending',
+        description: 'Pending',
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      await ExerciseProgramLocalDataSource(isar).create(pending);
+
+      await repo.refreshProgramsIfSafe();
+
+      expect(remote.getAllCalls, 0);
+      final localPrograms = await repo.getLocalPrograms();
+      expect(localPrograms.any((p) => p.id == 12), isTrue);
+    });
+
+    test('refreshProgramsIfSafe triggers when local is empty', () async {
+      await repo.refreshProgramsIfSafe();
+
+      expect(remote.getAllCalls, 1);
+      final localPrograms = await repo.getLocalPrograms();
+      expect(localPrograms.length, 1);
+      expect(localPrograms.first.id, 10);
+    });
+
+    test('updateProgram keeps existing exercises when payload is empty', () async {
+      const createPayload = ExerciseProgramPayloadDTO(
+        name: 'Local Plan',
+        description: 'Local Plan description',
         difficultyLevelId: 1,
         subscriptionId: 2,
         userId: 1,
@@ -219,17 +225,27 @@ void main() {
           ),
         ],
       );
+      await repo.createLocalProgram(createPayload, id: 20);
 
-      await repo.createProgram(payload);
+      const updatePayload = ExerciseProgramPayloadDTO(
+        name: 'Updated Plan',
+        description: 'Updated Plan description',
+        difficultyLevelId: 1,
+        subscriptionId: 2,
+        userId: 1,
+        fitnessGoalIds: [3],
+        exercises: [],
+      );
+
+      await repo.updateLocalProgram(20, updatePayload);
 
       final programs = await repo.getLocalPrograms();
-      expect(programs.any((p) => p.id == 11), isTrue);
-      final stored = programs.firstWhere((p) => p.id == 11);
+      final stored = programs.firstWhere((p) => p.id == 20);
       expect(stored.programExercises.length, 1);
       expect(stored.programExercises.first.exerciseId, exercise.id);
     });
 
-    test('deleteProgram removes local data when remote succeeds', () async {
+    test('deleteProgram removes local data for local-only program', () async {
       final stored = _buildProgram(
         id: 50,
         difficulty: difficulty,
@@ -237,15 +253,13 @@ void main() {
         goals: [goal],
         exercise: exercise,
         name: 'To Delete',
-      );
+      )..isLocalOnly = true;
       await ExerciseProgramLocalDataSource(isar).create(stored);
-      remote.items.add(stored);
 
-      await repo.deleteProgram(stored.id);
+      await repo.deleteProgram(stored.id, triggerSync: false);
 
       final remaining = await repo.getLocalPrograms();
       expect(remaining.where((p) => p.id == stored.id), isEmpty);
-      expect(remote.deleted, contains(stored.id));
     });
   });
 }

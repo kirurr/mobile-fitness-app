@@ -21,71 +21,14 @@ import 'package:test/test.dart';
 
 class _FakePlannedExerciseProgramRemote
     extends PlannedExerciseProgramRemoteDataSource {
-  final List<PlannedExerciseProgram> created = [];
-  final List<PlannedExerciseProgram> updated = [];
-  final List<int> deleted = [];
-  bool failCreate = false;
-  bool failUpdate = false;
-  bool failDelete = false;
+  final List<PlannedExerciseProgram> items = [];
 
   _FakePlannedExerciseProgramRemote(PlannedExerciseProgramMapper mapper)
     : super(ApiClient.instance, mapper);
 
   @override
   Future<List<PlannedExerciseProgram>> getAll() async {
-    return [...created, ...updated];
-  }
-
-  @override
-  Future<PlannedExerciseProgram> create(
-    PlannedExerciseProgramPayloadDTO payload,
-  ) async {
-    if (failCreate) throw Exception('create failed');
-    final item = PlannedExerciseProgram(
-      id: (created.isNotEmpty ? created.last.id + 1 : 1),
-      programId: payload.programId,
-    );
-    item.dates.addAll(
-      payload.dates
-          .map(
-            (d) => PlannedExerciseProgramDate(
-              id: Isar.autoIncrement,
-              plannedExerciseProgramId: item.id,
-              date: d,
-            )..plannedProgram.value = item,
-          )
-          .toList(),
-    );
-    created.add(item);
-    return item;
-  }
-
-  @override
-  Future<PlannedExerciseProgram> update(
-    int id,
-    PlannedExerciseProgramPayloadDTO payload,
-  ) async {
-    if (failUpdate) throw Exception('update failed');
-    final item = PlannedExerciseProgram(id: id, programId: payload.programId);
-    item.dates.addAll(
-      payload.dates
-          .map(
-            (d) => PlannedExerciseProgramDate(
-              id: Isar.autoIncrement,
-              plannedExerciseProgramId: id,
-              date: d,
-            )..plannedProgram.value = item,
-          )
-          .toList(),
-    );
-    updated.add(item);
-    return item;
-  }
-
-  @override
-  Future<void> delete(int id) async {
-    if (failDelete) throw Exception('delete failed');
-    deleted.add(id);
+    return items;
   }
 }
 
@@ -118,9 +61,23 @@ void main() {
     late Isar isar;
     late PlannedExerciseProgramRepository repo;
     late _FakePlannedExerciseProgramRemote remote;
+    late ExerciseProgram program;
+
+    setUpAll(() async {
+      await Isar.initializeIsarCore(download: true);
+    });
 
     setUp(() async {
       isar = await _openIsar();
+      program = ExerciseProgram(
+        id: 10,
+        userId: 1,
+        name: 'Program',
+        description: 'Plan',
+      );
+      await isar.writeTxn(() async {
+        await isar.exercisePrograms.put(program);
+      });
       final mapper = PlannedExerciseProgramMapper(isar: isar);
       remote = _FakePlannedExerciseProgramRemote(mapper);
       repo = PlannedExerciseProgramRepository(
@@ -138,18 +95,7 @@ void main() {
       dates: ['2024-01-01T00:00:00Z', '2024-01-02T00:00:00Z'],
     );
 
-    test('creates synced record when remote succeeds', () async {
-      await repo.create(payload);
-
-      final items = await repo.getLocalPlannedPrograms();
-      expect(items.length, 1);
-      expect(items.first.synced, isTrue);
-      expect(items.first.isLocalOnly, isFalse);
-      expect(items.first.dates.length, payload.dates.length);
-    });
-
-    test('stores unsynced local record when remote create fails', () async {
-      remote.failCreate = true;
+    test('create stores local unsynced record with dates', () async {
       await repo.create(payload);
 
       final items = await repo.getLocalPlannedPrograms();
@@ -159,22 +105,77 @@ void main() {
       expect(items.first.dates.length, payload.dates.length);
     });
 
-    test('sync processes unsynced creates and deletes', () async {
-      remote.failCreate = true;
-      await repo.create(payload);
+    test('update preserves program link and replaces dates', () async {
+      final created = PlannedExerciseProgram(
+        id: 25,
+        programId: program.id,
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      created.program.value = program;
+      created.dates.addAll(
+        [
+          PlannedExerciseProgramDate(
+            id: 26,
+            plannedExerciseProgramId: 25,
+            date: '2024-01-01T00:00:00Z',
+          )..plannedProgram.value = created,
+        ],
+      );
+      await PlannedExerciseProgramLocalDataSource(isar).upsert(
+        created,
+        datesOverride: ['2024-01-01T00:00:00Z'],
+      );
 
-      final offline = (await repo.getLocalPlannedPrograms()).first;
-      await repo.delete(offline.id);
+      await repo.update(
+        25,
+        const PlannedExerciseProgramPayloadDTO(
+          programId: 10,
+          dates: ['2024-02-01T00:00:00Z'],
+        ),
+      );
 
-      remote
-        ..failCreate = false
-        ..failDelete = false;
+      final stored = await repo.getLocalPlannedPrograms();
+      expect(stored.length, 1);
+      expect(stored.first.program.value?.id, program.id);
+      expect(stored.first.dates.length, 1);
+      expect(stored.first.dates.first.date, '2024-02-01T00:00:00Z');
+    });
 
-      await repo.sync();
+    test('refresh preserves local links when remote data is sparse', () async {
+      final localItem = PlannedExerciseProgram(
+        id: 30,
+        programId: program.id,
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      localItem.program.value = program;
+      localItem.dates.addAll(
+        [
+          PlannedExerciseProgramDate(
+            id: 31,
+            plannedExerciseProgramId: 30,
+            date: '2024-03-01T00:00:00Z',
+          )..plannedProgram.value = localItem,
+        ],
+      );
+      await PlannedExerciseProgramLocalDataSource(isar).upsert(
+        localItem,
+        datesOverride: ['2024-03-01T00:00:00Z'],
+      );
 
-      final remaining = await repo.getLocalPlannedPrograms();
-      expect(remaining, isEmpty);
-      expect(remote.deleted.isNotEmpty, isTrue);
+      remote.items.add(
+        PlannedExerciseProgram(id: 30, programId: program.id),
+      );
+
+      await repo.refreshPlannedPrograms();
+
+      final stored = await repo.getLocalPlannedPrograms();
+      expect(stored.length, 1);
+      expect(stored.first.id, 30);
+      expect(stored.first.programId, program.id);
     });
   });
 }

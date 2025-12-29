@@ -16,6 +16,9 @@ class _FakeUserDataRemote extends UserDataRemoteDataSource {
   UserData? current;
   UserData? created;
   UserData? updated;
+  int createCalls = 0;
+  int updateCalls = 0;
+  bool throwUpdateBadRequest = false;
 
   _FakeUserDataRemote(Isar isar)
       : super(ApiClient.instance, UserDataMapper(isar: isar));
@@ -25,11 +28,16 @@ class _FakeUserDataRemote extends UserDataRemoteDataSource {
 
   @override
   Future<UserData> create(CreateUserDataDTO payload) async {
+    createCalls += 1;
     return created!;
   }
 
   @override
   Future<UserData> update(UserData payload) async {
+    updateCalls += 1;
+    if (throwUpdateBadRequest) {
+      throw ApiError(message: 'bad request', code: 400);
+    }
     return updated ?? payload;
   }
 }
@@ -142,6 +150,31 @@ void main() {
       final stored = await repo.getLocalUserData();
       expect(stored?.userId, 30);
       expect(stored?.name, 'Created');
+    });
+
+    test('saveLocalUserData marks record as unsynced local-only', () async {
+      final payload = _buildUserData(id: 40, goal: goal, level: level);
+
+      await repo.saveLocalUserData(payload);
+
+      final stored = await repo.getLocalUserData();
+      expect(stored?.synced, isFalse);
+      expect(stored?.isLocalOnly, isTrue);
+    });
+
+    test('syncLocalUserData creates after update 400 error', () async {
+      final localUser = _buildUserData(id: 50, goal: goal, level: level);
+      await repo.saveLocalUserData(localUser);
+
+      remote.throwUpdateBadRequest = true;
+      remote.created = _buildUserData(id: 51, goal: goal, level: level);
+
+      await repo.syncLocalUserData();
+
+      expect(remote.updateCalls, 1);
+      expect(remote.createCalls, 1);
+      final stored = await isar.userDatas.get(51);
+      expect(stored?.userId, 51);
     });
   });
 }

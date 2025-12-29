@@ -61,15 +61,30 @@ class ExerciseProgramLocalDataSource {
   }
 
   Future<void> replaceAll(List<ExerciseProgram> items) async {
-    // Clear existing data in one transaction.
-    await db.writeTxn(() async {
-      await _collection.clear();
-      await _programExercises.clear();
-    });
+    final incomingIds = items.map((item) => item.id).toSet();
+    final existing = await _collection.where().findAll();
 
-    // Save each program and its links in isolated transactions to avoid nested tx issues.
     for (final item in items) {
-      await create(item);
+      await _saveProgram(
+        item,
+        clearExistingExercises: true,
+        programExercisesOverride: item.programExercises.toList(),
+        forceReplaceProgramExercises: true,
+      );
+    }
+
+    if (incomingIds.isEmpty) {
+      await db.writeTxn(() async {
+        await _programExercises.clear();
+        await _collection.clear();
+      });
+      return;
+    }
+
+    for (final item in existing) {
+      if (!incomingIds.contains(item.id)) {
+        await deleteById(item.id);
+      }
     }
   }
 
@@ -176,11 +191,13 @@ class ExerciseProgramLocalDataSource {
     ExerciseProgram item, {
     required bool clearExistingExercises,
     List<ProgramExercise>? programExercisesOverride,
+    bool forceReplaceProgramExercises = false,
   }) async {
     try {
       final incomingProgramExercises =
           programExercisesOverride ?? item.programExercises.toList();
-      final shouldUpdateProgramExercises = incomingProgramExercises.isNotEmpty;
+      final shouldUpdateProgramExercises =
+          forceReplaceProgramExercises || incomingProgramExercises.isNotEmpty;
       final difficulty =
           item.difficultyLevel.isNotEmpty
               ? item.difficultyLevel.first

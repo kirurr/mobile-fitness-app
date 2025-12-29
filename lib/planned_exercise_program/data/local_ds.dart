@@ -125,13 +125,25 @@ class PlannedExerciseProgramLocalDataSource {
   }
 
   Future<void> replaceAll(List<PlannedExerciseProgram> items) async {
-    await db.writeTxn(() async {
-      await _collection.clear();
-      await _dates.clear();
-    });
+    final incomingIds = items.map((item) => item.id).toSet();
+    final existing = await _collection.where().findAll();
 
     for (final item in items) {
       await upsert(item);
+    }
+
+    if (incomingIds.isEmpty) {
+      await db.writeTxn(() async {
+        await _dates.clear();
+        await _collection.clear();
+      });
+      return;
+    }
+
+    for (final item in existing) {
+      if (!incomingIds.contains(item.id)) {
+        await deleteById(item.id);
+      }
     }
   }
 

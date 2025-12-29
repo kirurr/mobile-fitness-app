@@ -67,10 +67,12 @@ class UserCompletedProgramLocalDataSource {
   Future<void> upsert(
     UserCompletedProgram item, {
     List<UserCompletedExercise>? completedExercisesOverride,
+    bool forceReplaceExercises = false,
   }) async {
     final exercises =
         completedExercisesOverride ?? item.completedExercises.toList();
-    final shouldReplaceExercises = exercises.isNotEmpty;
+    final shouldReplaceExercises =
+        forceReplaceExercises || exercises.isNotEmpty;
 
     await db.writeTxn(() async {
       await _collection.put(item);
@@ -181,13 +183,25 @@ class UserCompletedProgramLocalDataSource {
   }
 
   Future<void> replaceAll(List<UserCompletedProgram> items) async {
-    await db.writeTxn(() async {
-      await _collection.clear();
-      await _completedExercises.clear();
-    });
+    final incomingIds = items.map((item) => item.id).toSet();
+    final existing = await _collection.where().findAll();
 
     for (final item in items) {
-      await upsert(item);
+      await upsert(item, forceReplaceExercises: true);
+    }
+
+    if (incomingIds.isEmpty) {
+      await db.writeTxn(() async {
+        await _completedExercises.clear();
+        await _collection.clear();
+      });
+      return;
+    }
+
+    for (final item in existing) {
+      if (!incomingIds.contains(item.id)) {
+        await deleteById(item.id);
+      }
     }
   }
 

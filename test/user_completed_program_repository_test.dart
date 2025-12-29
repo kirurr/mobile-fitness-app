@@ -23,58 +23,20 @@ import 'package:test/test.dart';
 
 class _FakeUserCompletedProgramRemote
     extends UserCompletedProgramRemoteDataSource {
-  final List<UserCompletedProgram> created = [];
-  final List<UserCompletedProgram> updated = [];
-  final List<int> deleted = [];
-  bool failCreate = false;
-  bool failUpdate = false;
-  bool failDelete = false;
+  final List<UserCompletedProgram> items = [];
+  int deleteCalls = 0;
 
   _FakeUserCompletedProgramRemote(UserCompletedProgramMapper mapper)
     : super(ApiClient.instance, mapper);
 
   @override
   Future<List<UserCompletedProgram>> getAll() async {
-    return [...created, ...updated];
-  }
-
-  @override
-  Future<UserCompletedProgram> create(
-    UserCompletedProgramPayloadDTO payload,
-  ) async {
-    if (failCreate) throw Exception('create failed');
-    final item = UserCompletedProgram(
-      id: (created.isNotEmpty ? created.last.id + 1 : 1),
-      userId: payload.userId,
-      programId: payload.programId,
-      startDate: payload.startDate ?? DateTime.now().toIso8601String(),
-      endDate: payload.endDate,
-    );
-    created.add(item);
-    return item;
-  }
-
-  @override
-  Future<UserCompletedProgram> update(
-    int id,
-    UserCompletedProgramPayloadDTO payload,
-  ) async {
-    if (failUpdate) throw Exception('update failed');
-    final item = UserCompletedProgram(
-      id: id,
-      userId: payload.userId,
-      programId: payload.programId,
-      startDate: payload.startDate ?? DateTime.now().toIso8601String(),
-      endDate: payload.endDate,
-    );
-    updated.add(item);
-    return item;
+    return items;
   }
 
   @override
   Future<void> delete(int id) async {
-    if (failDelete) throw Exception('delete failed');
-    deleted.add(id);
+    deleteCalls += 1;
   }
 }
 
@@ -107,9 +69,23 @@ void main() {
     late Isar isar;
     late UserCompletedProgramRepository repo;
     late _FakeUserCompletedProgramRemote remote;
+    late ExerciseProgram program;
+
+    setUpAll(() async {
+      await Isar.initializeIsarCore(download: true);
+    });
 
     setUp(() async {
       isar = await _openIsar();
+      program = ExerciseProgram(
+        id: 5,
+        userId: 1,
+        name: 'Program',
+        description: 'Plan',
+      );
+      await isar.writeTxn(() async {
+        await isar.exercisePrograms.put(program);
+      });
       final completedExerciseMapper = UserCompletedExerciseMapper(isar: isar);
       final mapper = UserCompletedProgramMapper(
         isar: isar,
@@ -126,48 +102,106 @@ void main() {
       await isar.close(deleteFromDisk: true);
     });
 
-    const payload = UserCompletedProgramPayloadDTO(
-      userId: 1,
-      programId: 2,
-      startDate: '2024-01-01T00:00:00Z',
-      endDate: '2024-01-02T00:00:00Z',
-    );
-
-    test('creates synced record when remote succeeds', () async {
-      await repo.create(payload);
-
-      final items = await repo.getLocalCompletedPrograms();
-      expect(items.length, 1);
-      expect(items.first.synced, isTrue);
-      expect(items.first.isLocalOnly, isFalse);
-    });
-
-    test('stores unsynced local record when remote create fails', () async {
-      remote.failCreate = true;
-      await repo.create(payload);
+    test('create stores local unsynced record and normalizes start date', () async {
+      await repo.create(
+        const UserCompletedProgramPayloadDTO(
+          userId: 1,
+          programId: 2,
+          startDate: '',
+          endDate: '2024-01-02T00:00:00Z',
+        ),
+        id: 11,
+        triggerSync: false,
+      );
 
       final items = await repo.getLocalCompletedPrograms();
       expect(items.length, 1);
+      expect(items.first.id, 11);
       expect(items.first.synced, isFalse);
       expect(items.first.isLocalOnly, isTrue);
+      expect(items.first.startDate.isNotEmpty, isTrue);
     });
 
-    test('sync processes unsynced creates and deletes', () async {
-      remote.failCreate = true;
-      await repo.create(payload);
+    test('update keeps fallback dates when payload is empty', () async {
+      final localItem = UserCompletedProgram(
+        id: 20,
+        userId: 1,
+        programId: 5,
+        startDate: '2024-01-01T00:00:00Z',
+        endDate: '2024-01-02T00:00:00Z',
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      localItem.program.value = program;
+      await UserCompletedProgramLocalDataSource(isar).upsert(localItem);
 
-      final offline = (await repo.getLocalCompletedPrograms()).first;
-      await repo.delete(offline.id);
+      await repo.update(
+        20,
+        const UserCompletedProgramPayloadDTO(
+          userId: 1,
+          programId: 5,
+          startDate: '',
+          endDate: '',
+        ),
+        triggerSync: false,
+      );
 
-      remote
-        ..failCreate = false
-        ..failDelete = false;
+      final updated = await repo.getLocalCompletedPrograms();
+      expect(updated.length, 1);
+      expect(updated.first.startDate, '2024-01-01T00:00:00Z');
+      expect(updated.first.endDate, '2024-01-02T00:00:00Z');
+      expect(updated.first.program.value?.id, program.id);
+    });
 
-      await repo.sync();
+    test('refresh keeps local links when remote has none', () async {
+      final completedExercise = UserCompletedExercise(
+        id: 50,
+        completedProgramId: 30,
+        programExerciseId: null,
+        exerciseId: null,
+        sets: 3,
+        reps: 10,
+        duration: null,
+        weight: null,
+        restDuration: null,
+      );
+      final localItem = UserCompletedProgram(
+        id: 30,
+        userId: 1,
+        programId: 5,
+        startDate: '2024-02-01T00:00:00Z',
+        endDate: null,
+        synced: false,
+        pendingDelete: false,
+        isLocalOnly: true,
+      );
+      localItem.program.value = program;
+      localItem.completedExercises.add(completedExercise);
 
-      final remaining = await repo.getLocalCompletedPrograms();
-      expect(remaining, isEmpty);
-      expect(remote.deleted.isNotEmpty, isTrue);
+      await isar.writeTxn(() async {
+        await isar.userCompletedExercises.put(completedExercise);
+        await isar.userCompletedPrograms.put(localItem);
+        await localItem.program.save();
+        await localItem.completedExercises.save();
+      });
+
+      remote.items.add(
+        UserCompletedProgram(
+          id: 30,
+          userId: 1,
+          programId: 5,
+          startDate: '2024-02-01T00:00:00Z',
+          endDate: null,
+        ),
+      );
+
+      await repo.refreshCompletedPrograms();
+
+      final stored = await repo.getLocalCompletedPrograms();
+      expect(stored.length, 1);
+      expect(stored.first.id, 30);
+      expect(stored.first.programId, program.id);
     });
   });
 }
