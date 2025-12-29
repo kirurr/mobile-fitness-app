@@ -104,7 +104,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Profile saved locally. Sync to upload changes.'),
+          content: Text('Profile saved'),
         ),
       );
     } catch (e) {
@@ -137,7 +137,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('User Profile'),
+        title: const Text('Profile'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -154,156 +154,305 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_userData == null)
-                            const Text(
-                              'User data not found. Please complete your profile first.',
-                            )
-                          else
-                            Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Current info',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text('Name: ${_userData!.name}'),
-                                    Text('Age: ${_userData!.age}'),
-                                    Text('Weight: ${_userData!.weight}'),
-                                    Text('Height: ${_userData!.height}'),
-                                    Text(
-                                      'Goal: ${_userData!.fitnessGoal.value?.name ?? '-'}',
-                                    ),
-                                    Text(
-                                      'Level: ${_userData!.trainingLevel.value?.name ?? '-'}',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const UserSubscriptionsScreen(),
-                                    ),
-                                  ),
-                                  child: const Text('User Subscriptions'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _saving ? null : _signOut,
-                                  child: const Text('Sign Out'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Edit profile',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
                           Form(
                             key: _formKey,
                             child: Column(
                               children: [
-                                TextFormField(
-                                  controller: _nameController,
-                                  decoration:
-                                      const InputDecoration(labelText: 'Name'),
-                                  validator: (v) => v == null || v.trim().isEmpty
-                                      ? 'Required'
-                                      : null,
-                                ),
-                                TextFormField(
-                                  controller: _ageController,
-                                  decoration:
-                                      const InputDecoration(labelText: 'Age'),
-                                  keyboardType: TextInputType.number,
-                                  validator: (v) => v == null ||
-                                          int.tryParse(v) == null
-                                      ? 'Enter a number'
-                                      : null,
-                                ),
-                                TextFormField(
-                                  controller: _weightController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Weight',
+                                Center(
+                                  child: TextFormField(
+                                    controller: _nameController,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      hintText: 'Your name',
+                                      border: InputBorder.none,
+                                    ),
+                                    validator: (v) =>
+                                        v == null || v.trim().isEmpty
+                                            ? 'Required'
+                                            : null,
                                   ),
-                                  keyboardType: TextInputType.number,
-                                  validator: (v) => v == null ||
-                                          int.tryParse(v) == null
-                                      ? 'Enter a number'
-                                      : null,
                                 ),
-                                TextFormField(
-                                  controller: _heightController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Height',
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  validator: (v) => v == null ||
-                                          int.tryParse(v) == null
-                                      ? 'Enter a number'
-                                      : null,
-                                ),
-                                DropdownButtonFormField<int>(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Fitness Goal',
-                                  ),
-                                  initialValue: _selectedGoalId,
-                                  items: goals
-                                      .map(
-                                        (g) => DropdownMenuItem<int>(
-                                          value: g.id,
-                                          child: Text(g.name),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Age',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white60,
+                                                ),
+                                              ),
+                                              TextFormField(
+                                                controller: _ageController,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                decoration:
+                                                    const InputDecoration(
+                                                  hintText: 'Years',
+                                                  suffixText: 'years',
+                                                  border: InputBorder.none,
+                                                ),
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                validator: (v) => v == null ||
+                                                        int.tryParse(v) == null
+                                                    ? 'Enter a number'
+                                                    : null,
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      )
-                                      .toList(),
-                                  onChanged: (val) =>
-                                      setState(() => _selectedGoalId = val),
-                                  validator: (_) => _selectedGoalId == null
-                                      ? 'Select a goal'
-                                      : null,
-                                ),
-                                DropdownButtonFormField<int>(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Training Level',
-                                  ),
-                                  initialValue: _selectedDifficultyId,
-                                  items: levels
-                                      .map(
-                                        (lvl) => DropdownMenuItem<int>(
-                                          value: lvl.id,
-                                          child: Text(lvl.name),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Weight',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white60,
+                                                ),
+                                              ),
+                                              TextFormField(
+                                                controller: _weightController,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                decoration:
+                                                    const InputDecoration(
+                                                  hintText: 'kg',
+                                                  suffixText: 'kg',
+                                                  border: InputBorder.none,
+                                                ),
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                validator: (v) => v == null ||
+                                                        int.tryParse(v) == null
+                                                    ? 'Enter a number'
+                                                    : null,
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      )
-                                      .toList(),
-                                  onChanged: (val) => setState(
-                                    () => _selectedDifficultyId = val,
-                                  ),
-                                  validator: (_) =>
-                                      _selectedDifficultyId == null
-                                          ? 'Select a training level'
-                                          : null,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Height',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white60,
+                                                ),
+                                              ),
+                                              TextFormField(
+                                                controller: _heightController,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                decoration:
+                                                    const InputDecoration(
+                                                  hintText: 'cm',
+                                                  suffixText: 'cm',
+                                                  border: InputBorder.none,
+                                                ),
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                validator: (v) => v == null ||
+                                                        int.tryParse(v) == null
+                                                    ? 'Enter a number'
+                                                    : null,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 24),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Training goal',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white60,
+                                                ),
+                                              ),
+                                              DropdownButtonHideUnderline(
+                                                child:
+                                                    DropdownButtonFormField<int>(
+                                                  isExpanded: true,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                    border: InputBorder.none,
+                                                  ),
+                                                  initialValue:
+                                                      _selectedGoalId,
+                                                  items: goals
+                                                      .map(
+                                                        (g) =>
+                                                            DropdownMenuItem<int>(
+                                                          value: g.id,
+                                                          child: Text(
+                                                            g.name,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      )
+                                                      .toList(),
+                                                  onChanged: (val) => setState(
+                                                    () => _selectedGoalId = val,
+                                                  ),
+                                                  validator: (_) =>
+                                                      _selectedGoalId == null
+                                                          ? 'Select a goal'
+                                                          : null,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Card(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Training level',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white60,
+                                                ),
+                                              ),
+                                              DropdownButtonHideUnderline(
+                                                child:
+                                                    DropdownButtonFormField<int>(
+                                                  isExpanded: true,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                    border: InputBorder.none,
+                                                  ),
+                                                  initialValue:
+                                                      _selectedDifficultyId,
+                                                  items: levels
+                                                      .map(
+                                                        (lvl) =>
+                                                            DropdownMenuItem<int>(
+                                                          value: lvl.id,
+                                                          child: Text(
+                                                            lvl.name,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      )
+                                                      .toList(),
+                                                  onChanged: (val) => setState(
+                                                    () => _selectedDifficultyId =
+                                                        val,
+                                                  ),
+                                                  validator: (_) =>
+                                                      _selectedDifficultyId ==
+                                                              null
+                                                          ? 'Select a level'
+                                                          : null,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Card(
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const UserSubscriptionsScreen(),
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(14),
+                                      child: Row(
+                                        children: const [
+                                          Icon(Icons.workspace_premium),
+                                          SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              'My subscriptions',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.chevron_right,
+                                            color: Colors.white54,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
@@ -318,7 +467,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                               strokeWidth: 2,
                                             ),
                                           )
-                                        : const Text('Save Locally'),
+                                        : const Text('Save'),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Tip: tap any field to update it.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Center(
+                                  child: TextButton(
+                                    onPressed: _saving ? null : _signOut,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                    ),
+                                    child: const Text('Sign out'),
                                   ),
                                 ),
                               ],
