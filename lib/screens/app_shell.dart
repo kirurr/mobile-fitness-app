@@ -68,12 +68,16 @@ class AppShellState extends State<AppShell> with RouteAware {
 
     final deps = DependencyScope.of(context);
     try {
-      await _preloadLocalData(deps);
+      final hasCoreData = await _preloadLocalData(deps);
+      if (!hasCoreData) {
+        await deps.syncService.refreshAll();
+        await _preloadLocalData(deps);
+      }
       await _primeStreams(deps);
       if (!mounted) return;
       setState(() => _loading = false);
       _ensureUserData(deps);
-      unawaited(_refreshInBackground(deps));
+      unawaited(_syncOnTabEntry(refresh: hasCoreData));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -83,7 +87,7 @@ class AppShellState extends State<AppShell> with RouteAware {
     }
   }
 
-  Future<void> _preloadLocalData(Dependencies deps) async {
+  Future<bool> _preloadLocalData(Dependencies deps) async {
     final userData = await deps.userDataRepository.getLocalUserData();
     final visiblePrograms = await deps.exerciseProgramRepository.getLocalPrograms();
     final allPrograms = await deps.exerciseProgramRepository.getAllPrograms();
@@ -95,6 +99,8 @@ class AppShellState extends State<AppShell> with RouteAware {
         await deps.userSubscriptionRepository.getLocalUserSubscriptions();
     final subscriptions = await deps.subscriptionRepository.getLocalSubscriptions();
     final difficultyLevels = await deps.difficultyLevelRepository.getLocalLevels();
+    final exercises = await deps.exerciseRepository.getLocalExercises();
+    final goals = await deps.fitnessGoalRepository.getLocalGoals();
 
     _mainSeed = MainScreenSeedData(
       userData: userData,
@@ -107,28 +113,25 @@ class AppShellState extends State<AppShell> with RouteAware {
       difficultyLevels: difficultyLevels,
     );
 
-    await Future.wait([
-      deps.fitnessGoalRepository.getLocalGoals(),
-      deps.exerciseRepository.getLocalExercises(),
-    ]);
+    final hasCoreData =
+        exercises.isNotEmpty ||
+        visiblePrograms.isNotEmpty ||
+        allPrograms.isNotEmpty ||
+        difficultyLevels.isNotEmpty ||
+        subscriptions.isNotEmpty ||
+        goals.isNotEmpty;
+    return hasCoreData;
   }
 
-  Future<void> _refreshInBackground(Dependencies deps) async {
-    try {
-      await deps.syncService.syncPending();
-      await deps.syncService.refreshAll();
-    } catch (_) {
-      // Background refresh can fail silently in offline mode.
-    }
-  }
-
-  Future<void> _syncOnTabEntry() async {
+  Future<void> _syncOnTabEntry({bool refresh = false}) async {
     if (_syncing) return;
     _syncing = true;
     final deps = DependencyScope.of(context);
     try {
       await deps.syncService.syncPending();
-      await deps.syncService.refreshAll();
+      if (refresh) {
+        await deps.syncService.refreshAll();
+      }
     } catch (_) {
       // Allow offline use without blocking UI.
     } finally {

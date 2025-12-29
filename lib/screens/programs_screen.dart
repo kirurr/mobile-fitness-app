@@ -20,12 +20,12 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
 
   ExerciseProgram? _editing;
   bool _isSubmitting = false;
-  bool _loadingRefs = true;
 
   List<DifficultyLevel> _difficultyLevels = [];
   List<Subscription> _subscriptions = [];
   List<FitnessGoal> _fitnessGoals = [];
   List<Exercise> _exercises = [];
+  List<ExerciseProgram> _initialPrograms = [];
 
   int? _selectedDifficultyId;
   int? _selectedSubscriptionId;
@@ -51,6 +51,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
     final subs = await deps.subscriptionRepository.getLocalSubscriptions();
     final goals = await deps.fitnessGoalRepository.getLocalGoals();
     final exercises = await deps.exerciseRepository.getLocalExercises();
+    final programs = await deps.exerciseProgramRepository.getLocalPrograms();
 
     if (!mounted) return;
     setState(() {
@@ -58,7 +59,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
       _subscriptions = subs;
       _fitnessGoals = goals;
       _exercises = exercises;
-      _loadingRefs = false;
+      _initialPrograms = programs;
     });
   }
 
@@ -189,88 +190,83 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
               decoration: const InputDecoration(labelText: 'Description'),
             ),
             const SizedBox(height: 8),
-            _loadingRefs
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: LinearProgressIndicator(),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DropdownButtonFormField<int>(
-                        initialValue: _selectedDifficultyId,
-                        decoration: const InputDecoration(labelText: 'Difficulty Level'),
-                        items: _difficultyLevels
-                            .map(
-                              (d) => DropdownMenuItem<int>(
-                                value: d.id,
-                                child: Text(d.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (val) => setState(() => _selectedDifficultyId = val),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: _selectedDifficultyId,
+                  decoration: const InputDecoration(labelText: 'Difficulty Level'),
+                  items: _difficultyLevels
+                      .map(
+                        (d) => DropdownMenuItem<int>(
+                          value: d.id,
+                          child: Text(d.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) => setState(() => _selectedDifficultyId = val),
+                ),
+                DropdownButtonFormField<int?>(
+                  initialValue: _selectedSubscriptionId,
+                  decoration:
+                      const InputDecoration(labelText: 'Subscription (optional)'),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('None'),
+                    ),
+                    ..._subscriptions.map(
+                      (s) => DropdownMenuItem<int?>(
+                        value: s.id,
+                        child: Text('${s.name} (${s.monthlyCost})'),
                       ),
-                      DropdownButtonFormField<int?>(
-                        initialValue: _selectedSubscriptionId,
-                        decoration:
-                            const InputDecoration(labelText: 'Subscription (optional)'),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text('None'),
-                          ),
-                          ..._subscriptions.map(
-                            (s) => DropdownMenuItem<int?>(
-                              value: s.id,
-                              child: Text('${s.name} (${s.monthlyCost})'),
-                            ),
-                          ),
-                        ],
-                        onChanged: (val) => setState(() => _selectedSubscriptionId = val),
-                      ),
+                    ),
+                  ],
+                  onChanged: (val) => setState(() => _selectedSubscriptionId = val),
+                ),
                       const SizedBox(height: 12),
                       const Text('Fitness Goals',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      ..._fitnessGoals.map(
-                        (goal) => CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(goal.name),
-                          value: _selectedFitnessGoalIds.contains(goal.id),
-                          onChanged: (checked) {
-                            setState(() {
-                              if (checked == true) {
-                                _selectedFitnessGoalIds.add(goal.id);
-                              } else {
-                                _selectedFitnessGoalIds.remove(goal.id);
-                              }
-                            });
-                          },
-                        ),
-                      ),
+                ..._fitnessGoals.map(
+                  (goal) => CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(goal.name),
+                    value: _selectedFitnessGoalIds.contains(goal.id),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedFitnessGoalIds.add(goal.id);
+                        } else {
+                          _selectedFitnessGoalIds.remove(goal.id);
+                        }
+                      });
+                    },
+                  ),
+                ),
                       const SizedBox(height: 12),
                       const Text('Exercises',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      ..._exercises.map(
-                        (ex) => CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(ex.name),
-                          subtitle: Text(
-                            'Type: ${ex.type} | Difficulty: ${ex.difficultyLevel.value?.name ?? '-'}',
-                          ),
-                          value: _selectedExerciseIds.contains(ex.id),
-                          onChanged: (checked) {
-                            setState(() {
-                              if (checked == true) {
-                                _selectedExerciseIds.add(ex.id);
-                              } else {
-                                _selectedExerciseIds.remove(ex.id);
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                    ],
+                ..._exercises.map(
+                  (ex) => CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(ex.name),
+                    subtitle: Text(
+                      'Type: ${ex.type} | Difficulty: ${ex.difficultyLevel.value?.name ?? '-'}',
+                    ),
+                    value: _selectedExerciseIds.contains(ex.id),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedExerciseIds.add(ex.id);
+                        } else {
+                          _selectedExerciseIds.remove(ex.id);
+                        }
+                      });
+                    },
                   ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -291,13 +287,8 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
             const SizedBox(height: 8),
             StreamBuilder<List<ExerciseProgram>>(
               stream: repo.watchPrograms(),
+              initialData: _initialPrograms,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: CircularProgressIndicator(),
-                  );
-                }
                 if (snapshot.hasError) {
                   return Text('Error: ${snapshot.error}');
                 }

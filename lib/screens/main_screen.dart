@@ -18,6 +18,7 @@ import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
 import 'package:mobile_fitness_app/screens/training_start_screen.dart';
+import 'package:mobile_fitness_app/widgets/schedule_cards.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -242,18 +243,6 @@ class _MainScreenState extends State<MainScreen>
             const SizedBox(height: 12),
             _buildSubscriptionsSection(context),
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () async {
-                await deps.syncService.refreshAll();
-              },
-              child: const Text('Test API'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await deps.syncService.syncPending();
-              },
-              child: const Text('Sync'),
-            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -650,6 +639,15 @@ class _MainScreenState extends State<MainScreen>
           for (final program in programs) program.id: program,
         };
         final weekItems = _filterUpcoming(plannedItems, maxItems: 3);
+        final entries = weekItems
+            .map(
+              (item) => ScheduleEntry(
+                planned: item.item,
+                date: item.date,
+                program: programById[item.item.programId],
+              ),
+            )
+            .toList();
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -676,12 +674,7 @@ class _MainScreenState extends State<MainScreen>
                 ],
               ),
               const SizedBox(height: 8),
-              if (weekItems.isEmpty && data.isRefreshing)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(),
-                )
-              else if (weekItems.isEmpty)
+              if (weekItems.isEmpty)
                 Center(
                   child: TextButton(
                     onPressed: () => AppShell.of(context)?.setIndex(1),
@@ -689,179 +682,20 @@ class _MainScreenState extends State<MainScreen>
                   ),
                 )
               else
-                Column(
-                  children: weekItems.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final item = entry.value;
-                    return _buildScheduleCard(
-                      context,
-                      item.item,
-                      item.date,
-                      programById[item.item.programId],
-                      showConnector: index < weekItems.length - 1,
-                    );
-                  }).toList(),
+                ScheduleCardsList(
+                  entries: entries,
+                  onTap: (entry) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TrainingStartScreen(
+                        initialProgramId: entry.planned.programId,
+                      ),
+                    ),
+                  ),
                 ),
             ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildScheduleCard(
-    BuildContext context,
-    PlannedExerciseProgram item,
-    DateTime date,
-    ExerciseProgram? program, {
-    required bool showConnector,
-  }) {
-    final colorPrimary = Theme.of(context).colorScheme.primary;
-    final programName = item.program.value?.name ?? program?.name ?? 'Program';
-    final badgeText = _formatScheduleBadge(date);
-    final badgeIsToday = _isSameDay(date, DateTime.now());
-    final startTime = _formatTime(date);
-    final durationText = _formatProgramDuration(program);
-    final exerciseCount = program?.programExercises.length ?? 0;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: 72,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: badgeIsToday
-                          ? colorPrimary.withOpacity(0.2)
-                          : Colors.white10,
-                      borderRadius: BorderRadius.circular(10),
-                      border: badgeIsToday
-                          ? Border.all(color: colorPrimary)
-                          : null,
-                    ),
-                    child: Text(
-                      badgeIsToday ? 'Today' : badgeText,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: badgeIsToday ? colorPrimary : Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  if (showConnector) ...[
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: Container(
-                        width: 2,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TrainingStartScreen(
-                      initialProgramId: item.programId,
-                    ),
-                  ),
-                ),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              programName,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              startTime,
-                              style: TextStyle(
-                                color: colorPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.access_time,
-                                  size: 16,
-                                  color: Colors.white60,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  durationText,
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                const Icon(
-                                  Icons.fitness_center,
-                                  size: 16,
-                                  color: Colors.white60,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '$exerciseCount exercises',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white54,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1275,19 +1109,6 @@ class _MainScreenState extends State<MainScreen>
     return _WeeklyProgress(hoursText: hoursText, workouts: workouts);
   }
 
-  String _formatScheduleBadge(DateTime date) {
-    final now = DateTime.now();
-    if (_isSameDay(date, now)) {
-      return 'Today';
-    }
-
-    return _formatDate(date);
-  }
-
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
   DateTime? _parseDate(String? value) {
     if (value == null || value.isEmpty) return null;
     try {
@@ -1295,29 +1116,6 @@ class _MainScreenState extends State<MainScreen>
     } catch (_) {
       return null;
     }
-  }
-
-  String _formatTime(DateTime dateTime) {
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(dateTime.hour)}:${two(dateTime.minute)}';
-  }
-
-  String _formatDate(DateTime dateTime) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[dateTime.month - 1]} ${dateTime.day}';
   }
 
   String _formatDateWithYear(String? value) {

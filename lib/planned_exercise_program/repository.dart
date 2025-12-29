@@ -11,11 +11,11 @@ class PlannedExerciseProgramRepository {
   PlannedExerciseProgramRepository({required this.local, required this.remote});
 
   Stream<List<PlannedExerciseProgram>> watchPlannedPrograms() {
-    return local.watchAll();
+    return local.watchAll().map(_filterUpcomingPlans);
   }
 
   Future<List<PlannedExerciseProgram>> getLocalPlannedPrograms() {
-    return local.getAll();
+    return local.getAll().then(_filterUpcomingPlans);
   }
 
   Future<PlannedExerciseProgram?> getLocalPlannedProgramById(int id) {
@@ -175,5 +175,31 @@ class PlannedExerciseProgramRepository {
 
   int _generateLocalId() {
     return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  List<PlannedExerciseProgram> _filterUpcomingPlans(
+    List<PlannedExerciseProgram> items,
+  ) {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    return items.where((item) {
+      for (final planned in item.dates) {
+        final parsed = _parseDate(planned.date);
+        if (parsed == null) continue;
+        if (!parsed.isBefore(startOfToday)) {
+          return true;
+        }
+      }
+      return false;
+    }).toList();
+  }
+
+  DateTime? _parseDate(String? iso) {
+    if (iso == null || iso.isEmpty) return null;
+    try {
+      return DateTime.parse(iso).toLocal();
+    } catch (_) {
+      return null;
+    }
   }
 }

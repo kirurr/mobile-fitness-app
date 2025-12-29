@@ -15,16 +15,19 @@ class PlanProgramScreen extends StatefulWidget {
 }
 
 class _PlanProgramScreenState extends State<PlanProgramScreen> {
-  bool _loadingPlan = true;
   bool _saving = false;
   ExerciseProgram? _selectedProgram;
   PlannedExerciseProgram? _editingPlan;
   final Set<DateTime> _selectedDates = {};
+  List<ExerciseProgram> _initialPrograms = [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlan());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPlan();
+      _loadInitialPrograms();
+    });
   }
 
   Future<void> _loadPlan() async {
@@ -37,11 +40,19 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
     if (!mounted) return;
     setState(() {
       _editingPlan = existingPlan;
-      _loadingPlan = false;
     });
     if (existingPlan != null) {
       _syncSelectedDates(existingPlan);
     }
+  }
+
+  Future<void> _loadInitialPrograms() async {
+    final deps = DependencyScope.of(context);
+    final programs = await deps.exerciseProgramRepository.getLocalPrograms();
+    if (!mounted) return;
+    setState(() {
+      _initialPrograms = programs;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -156,10 +167,9 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Plan' : 'Plan Program'),
       ),
-      body: _loadingPlan
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<ExerciseProgram>>(
+      body: StreamBuilder<List<ExerciseProgram>>(
               stream: deps.exerciseProgramRepository.watchPrograms(),
+              initialData: _initialPrograms,
               builder: (context, snapshot) {
                 final programs = snapshot.data ?? const <ExerciseProgram>[];
                 if (programs.isEmpty) {

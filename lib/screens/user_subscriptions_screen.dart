@@ -21,12 +21,14 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
   bool _submitting = false;
   List<Subscription> _subscriptionsCache = [];
   int? _userId;
-  bool _loadingUserId = true;
+  List<Subscription> _initialSubscriptions = [];
+  List<UserSubscription> _initialUserSubscriptions = [];
 
   @override
   void initState() {
     super.initState();
     _loadUserId();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
   }
 
   Future<void> _loadUserId() async {
@@ -35,7 +37,19 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
     if (!mounted) return;
     setState(() {
       _userId = userId;
-      _loadingUserId = false;
+    });
+  }
+
+  Future<void> _loadInitialData() async {
+    final deps = DependencyScope.of(context);
+    final subscriptions = await deps.subscriptionRepository.getLocalSubscriptions();
+    final userSubscriptions =
+        await deps.userSubscriptionRepository.getLocalUserSubscriptions();
+    if (!mounted) return;
+    setState(() {
+      _initialSubscriptions = subscriptions;
+      _initialUserSubscriptions = userSubscriptions;
+      _subscriptionsCache = subscriptions;
     });
   }
 
@@ -180,11 +194,9 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
       appBar: AppBar(
         title: const Text('User Subscriptions'),
       ),
-      body:
-          _loadingUserId
-              ? const Center(child: CircularProgressIndicator())
-              : StreamBuilder<List<UserSubscription>>(
+      body: StreamBuilder<List<UserSubscription>>(
                 stream: userSubscriptionRepo.watchUserSubscriptions(),
+                initialData: _initialUserSubscriptions,
                 builder: (context, userSnapshot) {
                   if (userSnapshot.hasError) {
                     return Center(child: Text('Error: ${userSnapshot.error}'));
@@ -198,9 +210,8 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
 
                   return StreamBuilder<List<Subscription>>(
                     stream: repo.watchSubscriptions(),
+                    initialData: _initialSubscriptions,
                     builder: (context, snapshot) {
-                      final waiting =
-                          snapshot.connectionState == ConnectionState.waiting;
                       if (snapshot.hasError) {
                         return Center(child: Text('Error: ${snapshot.error}'));
                       }
@@ -209,10 +220,6 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
                           snapshot.data ?? _subscriptionsCache;
                       if (snapshot.hasData) {
                         _subscriptionsCache = subscriptions;
-                      }
-
-                      if (waiting && subscriptions.isEmpty) {
-                        return const Center(child: CircularProgressIndicator());
                       }
 
                       final activeIds = activeSubscriptions

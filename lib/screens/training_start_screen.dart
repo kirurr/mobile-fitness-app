@@ -313,11 +313,6 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
     if (_error != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Training')),

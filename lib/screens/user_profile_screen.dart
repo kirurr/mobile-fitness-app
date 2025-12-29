@@ -25,13 +25,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   UserData? _userData;
   int? _selectedGoalId;
   int? _selectedDifficultyId;
-  bool _loading = true;
   bool _saving = false;
+  List<FitnessGoal> _initialGoals = [];
+  List<DifficultyLevel> _initialLevels = [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadLocalUserData());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadLocalUserData();
+      _loadInitialLookups();
+    });
   }
 
   @override
@@ -55,7 +59,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _heightController.text = data?.height.toString() ?? '';
       _selectedGoalId = data?.fitnessGoal.value?.id;
       _selectedDifficultyId = data?.trainingLevel.value?.id;
-      _loading = false;
+    });
+  }
+
+  Future<void> _loadInitialLookups() async {
+    final deps = DependencyScope.of(context);
+    final goals = await deps.fitnessGoalRepository.getLocalGoals();
+    final levels = await deps.difficultyLevelRepository.getLocalLevels();
+    if (!mounted) return;
+    setState(() {
+      _initialGoals = goals;
+      _initialLevels = levels;
     });
   }
 
@@ -139,14 +153,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       appBar: AppBar(
         title: const Text('Profile'),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<FitnessGoal>>(
+      body: StreamBuilder<List<FitnessGoal>>(
               stream: goalRepo.watchGoals(),
+              initialData: _initialGoals,
               builder: (context, goalSnap) {
                 final goals = goalSnap.data ?? const [];
                 return StreamBuilder<List<DifficultyLevel>>(
                   stream: difficultyRepo.watchLevels(),
+                  initialData: _initialLevels,
                   builder: (context, levelSnap) {
                     final levels = levelSnap.data ?? const [];
                     return SingleChildScrollView(

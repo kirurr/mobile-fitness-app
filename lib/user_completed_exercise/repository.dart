@@ -144,6 +144,7 @@ class UserCompletedExerciseRepository {
     for (final item in pendingDeletes) {
       try {
         await remote.delete(item.id);
+        await local.deleteById(item.id);
       } catch (_) {
         continue;
       }
@@ -172,6 +173,9 @@ class UserCompletedExerciseRepository {
         } else {
           await remote.update(item.id, payload);
         }
+        item.synced = true;
+        item.isLocalOnly = false;
+        await local.upsert(item);
       } catch (_) {
         continue;
       }

@@ -4,9 +4,36 @@ import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/plan_program_screen.dart';
 import 'package:mobile_fitness_app/screens/training_start_screen.dart';
+import 'package:mobile_fitness_app/widgets/schedule_cards.dart';
 
-class PlannedProgramsScreen extends StatelessWidget {
+class PlannedProgramsScreen extends StatefulWidget {
   const PlannedProgramsScreen({super.key});
+
+  @override
+  State<PlannedProgramsScreen> createState() => _PlannedProgramsScreenState();
+}
+
+class _PlannedProgramsScreenState extends State<PlannedProgramsScreen> {
+  List<ExerciseProgram> _initialPrograms = [];
+  List<PlannedExerciseProgram> _initialPlans = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
+  }
+
+  Future<void> _loadInitialData() async {
+    final deps = DependencyScope.of(context);
+    final programs = await deps.exerciseProgramRepository.getAllPrograms();
+    final plans =
+        await deps.plannedExerciseProgramRepository.getLocalPlannedPrograms();
+    if (!mounted) return;
+    setState(() {
+      _initialPrograms = programs;
+      _initialPlans = plans;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +57,8 @@ class PlannedProgramsScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<ExerciseProgram>>(
-        stream: programRepo.watchPrograms(),
+        stream: programRepo.watchAllPrograms(),
+        initialData: _initialPrograms,
         builder: (context, programsSnapshot) {
           final programs = programsSnapshot.data ?? const <ExerciseProgram>[];
           final programById = {
@@ -39,77 +67,102 @@ class PlannedProgramsScreen extends StatelessWidget {
 
           return StreamBuilder<List<PlannedExerciseProgram>>(
             stream: plannedRepo.watchPlannedPrograms(),
+            initialData: _initialPlans,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));
               }
 
-              final items = snapshot.data ?? [];
-              if (items.isEmpty) {
+              final items = snapshot.data ?? const <PlannedExerciseProgram>[];
+              final entries = items
+                  .map((item) {
+                    final date = _earliestDate(item);
+                    if (date == null) return null;
+                    return ScheduleEntry(
+                      planned: item,
+                      date: date,
+                      program: programById[item.programId],
+                    );
+                  })
+                  .whereType<ScheduleEntry>()
+                  .toList();
+
+              if (entries.isEmpty) {
                 return const Center(child: Text('No planned programs yet.'));
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final programName = item.program.value?.name ??
-                      programById[item.programId]?.name ??
-                      'Program';
-                  final dates = item.dates.toList()
-                    ..sort((a, b) => a.date.compareTo(b.date));
-                  final datesText = dates.isEmpty
-                      ? '-'
-                      : dates
-                          .map((d) => _formatDateTime(d.date))
-                          .join(', ');
+              final grouped = _groupByMonth(entries);
 
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(programName),
-                            subtitle: Text('Planned dates: $datesText'),
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: grouped.entries.expand((entry) {
+                  final header = Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          entry.key,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => TrainingStartScreen(
-                                        initialProgramId: item.programId,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Text('Start Training'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => PlanProgramScreen(
-                                        plannedProgramId: item.id,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Text('Edit Plan'),
-                                ),
-                              ),
-                            ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                        ],
-                      ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${entry.value.length} workouts',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
-                },
+
+                  final cards = ScheduleCardsList(
+                    entries: entry.value,
+                    onTap: (scheduleEntry) => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TrainingStartScreen(
+                          initialProgramId: scheduleEntry.planned.programId,
+                        ),
+                      ),
+                    ),
+                    footerBuilder: (context, scheduleEntry) {
+                      return SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PlanProgramScreen(
+                                plannedProgramId: scheduleEntry.planned.id,
+                              ),
+                            ),
+                          ),
+                          child: const Text('Edit plan'),
+                        ),
+                      );
+                    },
+                  );
+
+                  return [
+                    header,
+                    cards,
+                    const SizedBox(height: 12),
+                  ];
+                }).toList(),
               );
             },
           );
@@ -118,15 +171,65 @@ class PlannedProgramsScreen extends StatelessWidget {
     );
   }
 
-  String _formatDateTime(String? iso) {
-    if (iso == null || iso.isEmpty) return '-';
-    try {
-      final dateTime = DateTime.parse(iso).toLocal();
-      String two(int v) => v.toString().padLeft(2, '0');
-      return '${dateTime.year}-${two(dateTime.month)}-${two(dateTime.day)} '
-          '${two(dateTime.hour)}:${two(dateTime.minute)}';
-    } catch (_) {
-      return iso;
+  DateTime? _earliestDate(PlannedExerciseProgram item) {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final dates = item.dates.toList();
+    DateTime? earliest;
+    for (final planned in dates) {
+      final parsed = _parseDate(planned.date);
+      if (parsed == null) continue;
+      if (parsed.isBefore(startOfToday)) continue;
+      if (earliest == null || parsed.isBefore(earliest)) {
+        earliest = parsed;
+      }
     }
+    return earliest;
+  }
+
+  Map<String, List<ScheduleEntry>> _groupByMonth(
+    List<ScheduleEntry> entries,
+  ) {
+    final sorted = [...entries];
+    sorted.sort((a, b) => b.date.compareTo(a.date));
+    final result = <String, List<ScheduleEntry>>{};
+    for (final entry in sorted) {
+      final key = _formatMonthYear(entry.date);
+      result.putIfAbsent(key, () => []).add(entry);
+    }
+    return result;
+  }
+
+  DateTime? _parseDate(String? iso) {
+    if (iso == null || iso.isEmpty) return null;
+    try {
+      return DateTime.parse(iso).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatMonthYear(DateTime date) {
+    final month = _monthName(date.month);
+    return '$month ${date.year}';
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month < 1 || month > 12) return 'Unknown';
+    return months[month - 1];
   }
 }

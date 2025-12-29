@@ -4,8 +4,36 @@ import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
 
-class UserCompletedProgramsScreen extends StatelessWidget {
+class UserCompletedProgramsScreen extends StatefulWidget {
   const UserCompletedProgramsScreen({super.key});
+
+  @override
+  State<UserCompletedProgramsScreen> createState() =>
+      _UserCompletedProgramsScreenState();
+}
+
+class _UserCompletedProgramsScreenState
+    extends State<UserCompletedProgramsScreen> {
+  List<ExerciseProgram> _initialPrograms = [];
+  List<UserCompletedProgram> _initialCompleted = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
+  }
+
+  Future<void> _loadInitialData() async {
+    final deps = DependencyScope.of(context);
+    final programs = await deps.exerciseProgramRepository.getAllPrograms();
+    final completed =
+        await deps.userCompletedProgramRepository.getLocalCompletedPrograms();
+    if (!mounted) return;
+    setState(() {
+      _initialPrograms = programs;
+      _initialCompleted = completed;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +47,7 @@ class UserCompletedProgramsScreen extends StatelessWidget {
       ),
       body: StreamBuilder<List<ExerciseProgram>>(
         stream: programRepo.watchAllPrograms(),
-        initialData: const <ExerciseProgram>[],
+        initialData: _initialPrograms,
         builder: (context, programsSnapshot) {
           final programs = programsSnapshot.data ?? const <ExerciseProgram>[];
           final programById = {
@@ -28,6 +56,7 @@ class UserCompletedProgramsScreen extends StatelessWidget {
 
           return StreamBuilder<List<UserCompletedProgram>>(
             stream: completedRepo.watchCompletedPrograms(),
+            initialData: _initialCompleted,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));
