@@ -14,11 +14,23 @@ class ExerciseProgramRepository {
   ExerciseProgramRepository({required this.local, required this.remote});
 
   Stream<List<ExerciseProgram>> watchPrograms() {
+    return local.watchAll().map(_filterVisiblePrograms);
+  }
+
+  Stream<List<ExerciseProgram>> watchAllPrograms() {
     return local.watchAll();
   }
 
   Future<List<ExerciseProgram>> getLocalPrograms() {
+    return local.getAll().then(_filterVisiblePrograms);
+  }
+
+  Future<List<ExerciseProgram>> getAllPrograms() {
     return local.getAll();
+  }
+
+  Future<ExerciseProgram?> getLocalProgramById(int id) {
+    return local.getById(id);
   }
 
   Future<void> refreshPrograms({
@@ -104,6 +116,7 @@ class ExerciseProgramRepository {
       userId: payload.userId ?? existing.userId,
       name: payload.name,
       description: payload.description,
+      isUserAdded: payload.isUserAdded ?? existing.isUserAdded,
       synced: false,
       pendingDelete: existing.pendingDelete,
       isLocalOnly: existing.isLocalOnly,
@@ -126,6 +139,19 @@ class ExerciseProgramRepository {
     return updateProgram(id, payload, triggerSync: false);
   }
 
+  Future<bool> markProgramUserAdded(
+    int id, {
+    bool isUserAdded = true,
+  }) async {
+    final existing = await local.getById(id);
+    if (existing == null) return false;
+    if (existing.isUserAdded == isUserAdded) return true;
+    existing.isUserAdded = isUserAdded;
+    existing.synced = false;
+    await local.updateFromProgram(existing, existing.programExercises.toList());
+    return true;
+  }
+
   Future<void> deleteProgram(int id, {bool triggerSync = true}) async {
     final existing = await local.getById(id);
     if (existing == null) return;
@@ -138,6 +164,7 @@ class ExerciseProgramRepository {
       userId: existing.userId,
       name: existing.name,
       description: existing.description,
+      isUserAdded: existing.isUserAdded,
       synced: false,
       pendingDelete: true,
       isLocalOnly: existing.isLocalOnly,
@@ -195,6 +222,7 @@ class ExerciseProgramRepository {
       userId: payload.userId,
       name: payload.name,
       description: payload.description,
+      isUserAdded: payload.isUserAdded ?? false,
       synced: false,
       pendingDelete: false,
       isLocalOnly: true,
@@ -226,6 +254,7 @@ class ExerciseProgramRepository {
       id: item.id,
       name: item.name,
       description: item.description,
+      isUserAdded: item.isUserAdded,
       difficultyLevelId: item.difficultyLevel.isNotEmpty
           ? item.difficultyLevel.first.id
           : 1,
@@ -295,5 +324,11 @@ class ExerciseProgramRepository {
 
   int _generateLocalId() {
     return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  List<ExerciseProgram> _filterVisiblePrograms(List<ExerciseProgram> items) {
+    return items
+        .where((program) => program.userId == null || program.isUserAdded)
+        .toList();
   }
 }

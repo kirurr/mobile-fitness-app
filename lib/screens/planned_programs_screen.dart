@@ -29,8 +29,8 @@ class PlannedProgramsScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: FutureBuilder<List<ExerciseProgram>>(
-        future: programRepo.getLocalPrograms(),
+      body: StreamBuilder<List<ExerciseProgram>>(
+        stream: programRepo.watchPrograms(),
         builder: (context, programsSnapshot) {
           final programs = programsSnapshot.data ?? const <ExerciseProgram>[];
           final programById = {

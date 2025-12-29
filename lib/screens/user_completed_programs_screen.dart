@@ -18,13 +18,19 @@ class UserCompletedProgramsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Completed Programs'),
       ),
-      body: FutureBuilder<List<ExerciseProgram>>(
-        future: programRepo.getLocalPrograms(),
+      body: StreamBuilder<List<ExerciseProgram>>(
+        stream: programRepo.watchAllPrograms(),
+        initialData: const <ExerciseProgram>[],
         builder: (context, programsSnapshot) {
           final programs = programsSnapshot.data ?? const <ExerciseProgram>[];
           final programById = {
             for (final program in programs) program.id: program,
           };
+
+          if (programsSnapshot.connectionState == ConnectionState.waiting &&
+              programs.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
           return StreamBuilder<List<UserCompletedProgram>>(
             stream: completedRepo.watchCompletedPrograms(),
@@ -41,80 +47,170 @@ class UserCompletedProgramsScreen extends StatelessWidget {
                 return const Center(child: Text('No completed programs yet.'));
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final programName = item.program.value?.name ??
-                      programById[item.programId]?.name ??
-                      'Program';
-                  final exerciseCount = item.completedExercises.length;
-                  final start = _formatDateTime(item.startDate);
-                  final end = _formatDateTime(item.endDate);
-                  final isCompleted = item.endDate != null;
+              final grouped = _groupByMonth(items);
 
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(programName),
-                            subtitle: Text(
-                              'Start: $start\n'
-                              'End: $end\n'
-                              'Exercises: $exerciseCount',
-                            ),
-                            trailing: Icon(
-                              isCompleted ? Icons.check_circle : Icons.timelapse,
-                              color: isCompleted ? Colors.green : Colors.orange,
-                            ),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => TrainingScreen(
-                                  completedProgramId: item.id,
-                                ),
-                              ),
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: grouped.entries.expand((entry) {
+                  final header = Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          entry.key,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${entry.value.length} workouts',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          if (isCompleted)
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => TrainingStartScreen(
-                                          initialProgramId: item.programId,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Text('Repeat Program'),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => TrainingScreen(
-                                          completedProgramId: item.id,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Text('Edit Program'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   );
-                },
+
+                  final cards = entry.value.map((item) {
+                    final programName = item.program.value?.name ??
+                        programById[item.programId]?.name ??
+                        'Program';
+                    final exerciseCount = item.completedExercises.length;
+                    final startText = _formatStartDate(item.startDate);
+                    final durationText =
+                        _formatDuration(item.startDate, item.endDate);
+                    final isCompleted = item.endDate != null;
+                    final statusIcon =
+                        isCompleted ? Icons.check_circle : Icons.timelapse;
+                    final statusColor =
+                        isCompleted ? Colors.green : Colors.orange;
+
+                    return Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrainingScreen(
+                              completedProgramId: item.id,
+                            ),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            programName,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Icon(
+                                          statusIcon,
+                                          color: statusColor,
+                                          size: 18,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    color: Colors.white54,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    size: 16,
+                                    color: Colors.white70,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    startText,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.access_time,
+                                    size: 16,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    durationText,
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Icon(
+                                    Icons.fitness_center,
+                                    size: 16,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$exerciseCount exercises',
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  });
+
+                  return [
+                    header,
+                    ...cards,
+                    const SizedBox(height: 12),
+                  ];
+                }).toList(),
               );
             },
           );
@@ -123,15 +219,82 @@ class UserCompletedProgramsScreen extends StatelessWidget {
     );
   }
 
-  String _formatDateTime(String? iso) {
-    if (iso == null || iso.isEmpty) return '-';
-    try {
-      final dateTime = DateTime.parse(iso).toLocal();
-      String two(int v) => v.toString().padLeft(2, '0');
-      return '${dateTime.year}-${two(dateTime.month)}-${two(dateTime.day)} '
-          '${two(dateTime.hour)}:${two(dateTime.minute)}';
-    } catch (_) {
-      return iso;
+  Map<String, List<UserCompletedProgram>> _groupByMonth(
+    List<UserCompletedProgram> items,
+  ) {
+    final sorted = [...items];
+    sorted.sort((a, b) {
+      final aDate = _parseDate(a.startDate) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = _parseDate(b.startDate) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+
+    final result = <String, List<UserCompletedProgram>>{};
+    for (final item in sorted) {
+      final date = _parseDate(item.startDate);
+      final key = date == null ? 'Unknown' : _formatMonthYear(date);
+      result.putIfAbsent(key, () => []).add(item);
     }
+    return result;
+  }
+
+  DateTime? _parseDate(String? iso) {
+    if (iso == null || iso.isEmpty) return null;
+    try {
+      return DateTime.parse(iso).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatStartDate(String? iso) {
+    final dateTime = _parseDate(iso);
+    if (dateTime == null) return '-';
+    String two(int v) => v.toString().padLeft(2, '0');
+    final month = _monthName(dateTime.month);
+    return '$month ${dateTime.day}, ${two(dateTime.hour)}:${two(dateTime.minute)}';
+  }
+
+  String _formatDuration(String? startIso, String? endIso) {
+    final start = _parseDate(startIso);
+    if (start == null) return '-';
+    final end = endIso == null || endIso.isEmpty
+        ? DateTime.now()
+        : _parseDate(endIso);
+    if (end == null) return '-';
+    final diff = end.difference(start);
+    final totalMinutes = diff.inMinutes;
+    if (totalMinutes < 1) return '< 1 min';
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours <= 0) return '${minutes} min';
+    if (minutes == 0) return '${hours} h';
+    return '${hours} h ${minutes} min';
+  }
+
+  String _formatMonthYear(DateTime date) {
+    final month = _monthName(date.month);
+    return '$month ${date.year}';
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month < 1 || month > 12) return 'Unknown';
+    return months[month - 1];
   }
 }

@@ -14,9 +14,8 @@ class PlanProgramScreen extends StatefulWidget {
 }
 
 class _PlanProgramScreenState extends State<PlanProgramScreen> {
-  bool _loadingPrograms = true;
+  bool _loadingPlan = true;
   bool _saving = false;
-  List<ExerciseProgram> _programs = [];
   ExerciseProgram? _selectedProgram;
   PlannedExerciseProgram? _editingPlan;
   final Set<DateTime> _selectedDates = {};
@@ -24,12 +23,11 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPrograms());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlan());
   }
 
-  Future<void> _loadPrograms() async {
+  Future<void> _loadPlan() async {
     final deps = DependencyScope.of(context);
-    final programs = await deps.exerciseProgramRepository.getLocalPrograms();
     PlannedExerciseProgram? existingPlan;
     if (widget.plannedProgramId != null) {
       existingPlan = await deps.plannedExerciseProgramRepository
@@ -37,10 +35,8 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
     }
     if (!mounted) return;
     setState(() {
-      _programs = programs;
-      _selectedProgram = _resolveSelectedProgram(programs, existingPlan);
       _editingPlan = existingPlan;
-      _loadingPrograms = false;
+      _loadingPlan = false;
     });
     if (existingPlan != null) {
       _syncSelectedDates(existingPlan);
@@ -153,87 +149,117 @@ class _PlanProgramScreenState extends State<PlanProgramScreen> {
     final dates = _selectedDates.toList()
       ..sort((a, b) => a.compareTo(b));
     final isEditing = _editingPlan != null;
+    final deps = DependencyScope.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Plan' : 'Plan Program'),
       ),
-      body: _loadingPrograms
+      body: _loadingPlan
           ? const Center(child: CircularProgressIndicator())
-          : _programs.isEmpty
-          ? const Center(child: Text('No programs available'))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Program',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<ExerciseProgram>(
-                    value: _selectedProgram,
-                    items: _programs
-                        .map(
-                          (program) => DropdownMenuItem<ExerciseProgram>(
-                            value: program,
-                            child: Text(program.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (program) {
-                      setState(() => _selectedProgram = program);
-                    },
-                    decoration: const InputDecoration(labelText: 'Program'),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Planned dates',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  if (dates.isEmpty)
-                    const Text('No dates selected')
-                  else
-                    Column(
-                      children: dates
-                          .map(
-                            (date) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(_formatDate(date)),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () => _removeDate(date),
+          : StreamBuilder<List<ExerciseProgram>>(
+              stream: deps.exerciseProgramRepository.watchPrograms(),
+              builder: (context, snapshot) {
+                final programs = snapshot.data ?? const <ExerciseProgram>[];
+                if (programs.isEmpty) {
+                  return const Center(child: Text('No programs available'));
+                }
+                ExerciseProgram? resolved = _selectedProgram;
+                if (resolved == null ||
+                    !programs.any((p) => p.id == resolved!.id)) {
+                  resolved = _resolveSelectedProgram(programs, _editingPlan);
+                }
+                if (_selectedProgram?.id != resolved?.id) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      _selectedProgram = resolved;
+                    });
+                  });
+                }
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Program',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<ExerciseProgram>(
+                        value: _selectedProgram ?? resolved,
+                        items: programs
+                            .map(
+                              (program) => DropdownMenuItem<ExerciseProgram>(
+                                value: program,
+                                child: Text(program.name),
                               ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _pickDate,
-                      child: const Text('Add date & time'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _savePlan,
-                      child: _saving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Text(isEditing ? 'Save changes' : 'Save plan'),
-                    ),
+                            .toList(),
+                        onChanged: (program) {
+                          setState(() => _selectedProgram = program);
+                        },
+                        decoration: const InputDecoration(labelText: 'Program'),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Planned dates',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (dates.isEmpty)
+                        const Text('No dates selected')
+                      else
+                        Column(
+                          children: dates
+                              .map(
+                                (date) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(_formatDate(date)),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () => _removeDate(date),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _pickDate,
+                          child: const Text('Add date & time'),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _saving ? null : _savePlan,
+                          child: _saving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(isEditing ? 'Save changes' : 'Save plan'),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
     );
   }

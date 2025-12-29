@@ -27,14 +27,19 @@ const ExerciseProgramSchema = CollectionSchema(
       name: r'isLocalOnly',
       type: IsarType.bool,
     ),
-    r'name': PropertySchema(id: 2, name: r'name', type: IsarType.string),
+    r'isUserAdded': PropertySchema(
+      id: 2,
+      name: r'isUserAdded',
+      type: IsarType.bool,
+    ),
+    r'name': PropertySchema(id: 3, name: r'name', type: IsarType.string),
     r'pendingDelete': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'pendingDelete',
       type: IsarType.bool,
     ),
-    r'synced': PropertySchema(id: 4, name: r'synced', type: IsarType.bool),
-    r'userId': PropertySchema(id: 5, name: r'userId', type: IsarType.long),
+    r'synced': PropertySchema(id: 5, name: r'synced', type: IsarType.bool),
+    r'userId': PropertySchema(id: 6, name: r'userId', type: IsarType.long),
   },
 
   estimateSize: _exerciseProgramEstimateSize,
@@ -96,10 +101,11 @@ void _exerciseProgramSerialize(
 ) {
   writer.writeString(offsets[0], object.description);
   writer.writeBool(offsets[1], object.isLocalOnly);
-  writer.writeString(offsets[2], object.name);
-  writer.writeBool(offsets[3], object.pendingDelete);
-  writer.writeBool(offsets[4], object.synced);
-  writer.writeLong(offsets[5], object.userId);
+  writer.writeBool(offsets[2], object.isUserAdded);
+  writer.writeString(offsets[3], object.name);
+  writer.writeBool(offsets[4], object.pendingDelete);
+  writer.writeBool(offsets[5], object.synced);
+  writer.writeLong(offsets[6], object.userId);
 }
 
 ExerciseProgram _exerciseProgramDeserialize(
@@ -112,10 +118,11 @@ ExerciseProgram _exerciseProgramDeserialize(
     description: reader.readString(offsets[0]),
     id: id,
     isLocalOnly: reader.readBoolOrNull(offsets[1]) ?? false,
-    name: reader.readString(offsets[2]),
-    pendingDelete: reader.readBoolOrNull(offsets[3]) ?? false,
-    synced: reader.readBoolOrNull(offsets[4]) ?? true,
-    userId: reader.readLongOrNull(offsets[5]),
+    isUserAdded: reader.readBoolOrNull(offsets[2]) ?? false,
+    name: reader.readString(offsets[3]),
+    pendingDelete: reader.readBoolOrNull(offsets[4]) ?? false,
+    synced: reader.readBoolOrNull(offsets[5]) ?? true,
+    userId: reader.readLongOrNull(offsets[6]),
   );
   return object;
 }
@@ -132,12 +139,14 @@ P _exerciseProgramDeserializeProp<P>(
     case 1:
       return (reader.readBoolOrNull(offset) ?? false) as P;
     case 2:
-      return (reader.readString(offset)) as P;
-    case 3:
       return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 3:
+      return (reader.readString(offset)) as P;
     case 4:
-      return (reader.readBoolOrNull(offset) ?? true) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 5:
+      return (reader.readBoolOrNull(offset) ?? true) as P;
+    case 6:
       return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -473,6 +482,15 @@ extension ExerciseProgramQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.equalTo(property: r'isLocalOnly', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterFilterCondition>
+  isUserAddedEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'isUserAdded', value: value),
       );
     });
   }
@@ -998,6 +1016,20 @@ extension ExerciseProgramQuerySortBy
     });
   }
 
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortByIsUserAdded() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isUserAdded', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  sortByIsUserAddedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isUserAdded', Sort.desc);
+    });
+  }
+
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy> sortByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -1094,6 +1126,20 @@ extension ExerciseProgramQuerySortThenBy
     });
   }
 
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenByIsUserAdded() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isUserAdded', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy>
+  thenByIsUserAddedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isUserAdded', Sort.desc);
+    });
+  }
+
   QueryBuilder<ExerciseProgram, ExerciseProgram, QAfterSortBy> thenByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -1164,6 +1210,13 @@ extension ExerciseProgramQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ExerciseProgram, ExerciseProgram, QDistinct>
+  distinctByIsUserAdded() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isUserAdded');
+    });
+  }
+
   QueryBuilder<ExerciseProgram, ExerciseProgram, QDistinct> distinctByName({
     bool caseSensitive = true,
   }) {
@@ -1210,6 +1263,12 @@ extension ExerciseProgramQueryProperty
   QueryBuilder<ExerciseProgram, bool, QQueryOperations> isLocalOnlyProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isLocalOnly');
+    });
+  }
+
+  QueryBuilder<ExerciseProgram, bool, QQueryOperations> isUserAddedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isUserAdded');
     });
   }
 

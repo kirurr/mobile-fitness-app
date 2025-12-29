@@ -47,6 +47,7 @@ class ExerciseProgramDTO {
   final int? userId;
   final String name;
   final String description;
+  final bool isUserAdded;
   final int difficultyLevelId;
   final int? subscriptionId;
   final List<int> fitnessGoalIds;
@@ -57,6 +58,7 @@ class ExerciseProgramDTO {
     required this.userId,
     required this.name,
     required this.description,
+    required this.isUserAdded,
     required this.difficultyLevelId,
     required this.subscriptionId,
     required this.fitnessGoalIds,
@@ -69,6 +71,7 @@ class ExerciseProgramDTO {
       userId: json['userId'] as int?,
       name: json['name'] as String,
       description: json['description'] as String,
+      isUserAdded: json['isUserAdded'] as bool? ?? false,
       difficultyLevelId: json['difficultyLevelId'] as int,
       subscriptionId: json['subscriptionId'] as int?,
       fitnessGoalIds: (json['fitnessGoals'] as List? ?? [])
@@ -92,6 +95,7 @@ class ExerciseProgramDTO {
       'userId': userId,
       'name': name,
       'description': description,
+      'isUserAdded': isUserAdded,
       'difficultyLevelId': difficultyLevelId,
       'subscriptionId': subscriptionId,
       'fitnessGoalIds': fitnessGoalIds,
@@ -104,6 +108,7 @@ class ExerciseProgramPayloadDTO {
   final int? id;
   final String name;
   final String description;
+  final bool? isUserAdded;
   final int difficultyLevelId;
   final int? subscriptionId;
   final int? userId;
@@ -114,6 +119,7 @@ class ExerciseProgramPayloadDTO {
     this.id,
     required this.name,
     required this.description,
+    this.isUserAdded,
     required this.difficultyLevelId,
     required this.subscriptionId,
     required this.userId,
@@ -126,6 +132,7 @@ class ExerciseProgramPayloadDTO {
       if (id != null) 'id': id,
       'name': name,
       'description': description,
+      if (isUserAdded != null) 'isUserAdded': isUserAdded,
       'difficultyLevelId': difficultyLevelId,
       'subscriptionId': subscriptionId,
       'userId': userId,

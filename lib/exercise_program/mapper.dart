@@ -20,6 +20,7 @@ class ExerciseProgramMapper {
         userId: dto.userId,
         name: dto.name,
         description: dto.description,
+        isUserAdded: dto.isUserAdded,
         synced: true,
         pendingDelete: false,
         isLocalOnly: false,
@@ -140,6 +141,7 @@ class ExerciseProgramMapper {
       userId: model.userId,
       name: model.name,
       description: model.description,
+      isUserAdded: model.isUserAdded,
       difficultyLevelId:
           model.difficultyLevel.isNotEmpty
               ? model.difficultyLevel.first.id

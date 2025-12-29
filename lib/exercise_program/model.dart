@@ -15,6 +15,7 @@ class ExerciseProgram {
   bool synced;
   bool pendingDelete;
   bool isLocalOnly;
+  bool isUserAdded;
 
   final programExercises = IsarLinks<ProgramExercise>();
   final difficultyLevel = IsarLinks<DifficultyLevel>();
@@ -29,6 +30,7 @@ class ExerciseProgram {
     this.synced = true,
     this.pendingDelete = false,
     this.isLocalOnly = false,
+    this.isUserAdded = false,
   });
 }
 

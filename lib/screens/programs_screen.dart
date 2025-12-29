@@ -102,6 +102,7 @@ class _ProgramsScreenState extends State<ProgramsScreen> {
     final payload = ExerciseProgramPayloadDTO(
       name: name,
       description: description,
+      isUserAdded: _editing?.isUserAdded ?? false,
       difficultyLevelId: difficultyId,
       subscriptionId: subscriptionId,
       userId: null,

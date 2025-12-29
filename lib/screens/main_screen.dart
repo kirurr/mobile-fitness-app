@@ -215,7 +215,7 @@ class _MainScreenState extends State<MainScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'My progress',
+                    'My weekly progress',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   InkWell(
@@ -1180,7 +1180,7 @@ class _MainScreenState extends State<MainScreen>
 
       try {
         planned = await plannedRepo.getLocalPlannedPrograms();
-        programs = await programRepo.getLocalPrograms();
+        programs = await programRepo.watchAllPrograms().first;
         controller.add(
           _ScheduleData(
             planned: planned,
@@ -1207,7 +1207,7 @@ class _MainScreenState extends State<MainScreen>
         onError: controller.addError,
       );
 
-      programSub = programRepo.watchPrograms().listen(
+      programSub = programRepo.watchAllPrograms().listen(
         (items) {
           programs = items;
           controller.add(

@@ -8,6 +8,7 @@ import 'package:mobile_fitness_app/exercise_category/model.dart';
 import 'package:mobile_fitness_app/muscle_group/model.dart';
 import 'package:mobile_fitness_app/exercise_program/dto.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
+import 'package:mobile_fitness_app/screens/completed_training_screen.dart';
 import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/dto.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
@@ -17,8 +18,13 @@ import 'package:mobile_fitness_app/user_data/model.dart';
 
 class TrainingScreen extends StatefulWidget {
   final int? completedProgramId;
+  final bool showCompletedScreen;
 
-  const TrainingScreen({super.key, this.completedProgramId});
+  const TrainingScreen({
+    super.key,
+    this.completedProgramId,
+    this.showCompletedScreen = true,
+  });
 
   @override
   State<TrainingScreen> createState() => _TrainingScreenState();
@@ -84,6 +90,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         return;
       }
       final exercises = await deps.exerciseRepository.getLocalExercises();
+      final programRepo = deps.exerciseProgramRepository;
       final difficultyId = userData.trainingLevel.value?.id;
       if (difficultyId == null) {
         setState(() {
@@ -92,7 +99,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         });
         return;
       }
-      final programs = await deps.exerciseProgramRepository.getLocalPrograms();
+      final programs = await programRepo.watchAllPrograms().first;
 
       final completedProgramId = widget.completedProgramId;
       UserCompletedProgram? completedProgram;
@@ -111,7 +118,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
           return;
         }
 
-        selectedProgram = completedProgram.program.value ??
+        selectedProgram =
+            completedProgram.program.value ??
+            await programRepo.getLocalProgramById(completedProgram.programId) ??
             _findProgramById(programs, completedProgram.programId);
         completedExercises = await deps.userCompletedExerciseRepository
             .getLocalCompletedExercises(completedProgram.id);
@@ -253,6 +262,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       final programPayload = ExerciseProgramPayloadDTO(
         name: name,
         description: program.description,
+        isUserAdded: program.isUserAdded,
         difficultyLevelId: difficultyId,
         subscriptionId: null,
         userId: program.userId,
@@ -463,6 +473,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final payload = ExerciseProgramPayloadDTO(
       name: _program?.name ?? 'untitled program',
       description: _program?.description ?? 'Generated training',
+      isUserAdded: _program?.isUserAdded ?? false,
       difficultyLevelId: difficultyId,
       subscriptionId: null,
       userId: userData.userId,
@@ -497,6 +508,25 @@ class _TrainingScreenState extends State<TrainingScreen> {
   @override
   Widget build(BuildContext context) {
     final completedProgram = _completedProgram;
+    final endDate = completedProgram?.endDate;
+    if (widget.showCompletedScreen &&
+        completedProgram != null &&
+        endDate != null &&
+        endDate.isNotEmpty) {
+      final programName = _program?.name ?? 'Workout';
+      final exerciseCount =
+          _completedCache.isNotEmpty
+              ? _completedCache.length
+              : completedProgram.completedExercises.length;
+      return CompletedTrainingScreen(
+        completedProgramId: completedProgram.id,
+        programId: completedProgram.programId,
+        programName: programName,
+        startDate: completedProgram.startDate,
+        endDate: endDate,
+        exerciseCount: exerciseCount,
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Training')),
       body: _loading
@@ -603,7 +633,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('Finish Workout'),
+                                : Text(
+                                  completedProgram.endDate?.isNotEmpty == true
+                                      ? 'Save'
+                                      : 'Finish Workout',
+                                ),
                           ),
                         ),
                       ),
@@ -1257,13 +1291,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     Dependencies deps,
     int id,
   ) async {
-    final programs = await deps.exerciseProgramRepository.getLocalPrograms();
-    for (final program in programs) {
-      if (program.id == id) {
-        return program;
-      }
-    }
-    return null;
+    return deps.exerciseProgramRepository.getLocalProgramById(id);
   }
 
   Future<void> _linkCompletedExercisesToProgramExercises(

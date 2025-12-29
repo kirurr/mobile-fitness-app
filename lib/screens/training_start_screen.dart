@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/dto.dart';
@@ -30,6 +31,7 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
   bool _startingProgram = false;
   bool _startingCustomProgram = false;
   String? _error;
+  StreamSubscription<List<ExerciseProgram>>? _programsSub;
 
   late final AnimationController _shakeController;
   late final Animation<double> _shakeAnimation;
@@ -61,6 +63,7 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
 
   @override
   void dispose() {
+    _programsSub?.cancel();
     _shakeController.dispose();
     super.dispose();
   }
@@ -82,28 +85,44 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
         return;
       }
 
-      final programs = await deps.exerciseProgramRepository.getLocalPrograms();
       final userSubscriptions =
           await deps.userSubscriptionRepository.getLocalUserSubscriptions();
 
-      ExerciseProgram? selected;
-      if (widget.initialProgramId != null) {
-        for (final program in programs) {
-          if (program.id == widget.initialProgramId) {
-            selected = program;
-            break;
-          }
-        }
-      }
-      selected ??= programs.isNotEmpty ? programs.first : null;
-
       setState(() {
         _userData = userData;
-        _availablePrograms = programs;
         _userSubscriptions = userSubscriptions;
-        _selectedProgram = selected;
-        _loading = false;
       });
+
+      await _programsSub?.cancel();
+      _programsSub = deps.exerciseProgramRepository.watchPrograms().listen(
+        (programs) {
+          if (!mounted) return;
+          ExerciseProgram? selected = _selectedProgram;
+          if (selected != null) {
+            final match = programs.where((item) => item.id == selected!.id);
+            selected = match.isNotEmpty ? match.first : null;
+          }
+          if (selected == null && widget.initialProgramId != null) {
+            final match =
+                programs.where((item) => item.id == widget.initialProgramId);
+            selected = match.isNotEmpty ? match.first : null;
+          }
+          selected ??= programs.isNotEmpty ? programs.first : null;
+
+          setState(() {
+            _availablePrograms = programs;
+            _selectedProgram = selected;
+            _loading = false;
+          });
+        },
+        onError: (e) {
+          if (!mounted) return;
+          setState(() {
+            _error = 'Failed to load programs: $e';
+            _loading = false;
+          });
+        },
+      );
     } catch (e) {
       setState(() {
         _error = 'Failed to load programs: $e';
@@ -130,10 +149,41 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
 
     try {
       final deps = DependencyScope.of(context);
+      final copyPayload = ExerciseProgramPayloadDTO(
+        name: program.name,
+        description: program.description,
+        isUserAdded: false,
+        difficultyLevelId:
+            program.difficultyLevel.isNotEmpty
+                ? program.difficultyLevel.first.id
+                : 1,
+        subscriptionId:
+            program.subscription.isNotEmpty
+                ? program.subscription.first.id
+                : null,
+        userId: userData.userId,
+        fitnessGoalIds: program.fitnessGoals.map((g) => g.id).toList(),
+        exercises: program.programExercises.toList().asMap().entries.map((
+          entry,
+        ) {
+          final index = entry.key;
+          final pe = entry.value;
+          return ProgramExerciseDTO(
+            exerciseId: pe.exerciseId,
+            order: pe.order ?? index,
+            sets: pe.sets,
+            reps: pe.reps,
+            duration: pe.duration,
+            restDuration: pe.restDuration,
+          );
+        }).toList(),
+      );
+      final copiedProgram =
+          await deps.exerciseProgramRepository.createLocalProgram(copyPayload);
       final nowIso = DateTime.now().toUtc().toIso8601String();
       final completedProgramPayload = UserCompletedProgramPayloadDTO(
         userId: userData.userId,
-        programId: program.id,
+        programId: copiedProgram.id,
         startDate: nowIso,
         endDate: null,
       );
@@ -142,7 +192,7 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
           .create(completedProgramPayload, triggerSync: false);
 
       final completedExerciseRepo = deps.userCompletedExerciseRepository;
-      for (final programExercise in program.programExercises) {
+      for (final programExercise in copiedProgram.programExercises) {
         final payload = UserCompletedExercisePayloadDTO(
           completedProgramId: createdCompletedProgram.id,
           programExerciseId: programExercise.id,
@@ -203,6 +253,7 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
       final programPayload = ExerciseProgramPayloadDTO(
         name: 'untitled program',
         description: 'Generated training',
+        isUserAdded: false,
         difficultyLevelId: difficultyId,
         subscriptionId: null,
         userId: userData.userId,
