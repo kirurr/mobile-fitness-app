@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
-import 'package:mobile_fitness_app/screens/main_screen.dart';
+import 'package:mobile_fitness_app/screens/app_shell.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
 
 class CompletedTrainingScreen extends StatelessWidget {
@@ -187,7 +187,7 @@ class CompletedTrainingScreen extends StatelessWidget {
             const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const MainScreen()),
+                MaterialPageRoute(builder: (_) => const AppShell()),
                 (_) => false,
               ),
               icon: const Icon(Icons.home),

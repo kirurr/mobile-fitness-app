@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_fitness_app/screens/main_screen.dart';
-import 'package:mobile_fitness_app/screens/planned_programs_screen.dart';
-import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
-import 'package:mobile_fitness_app/screens/user_profile_screen.dart';
 
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
+  final ValueChanged<int> onTap;
 
-  const AppBottomNav({super.key, required this.currentIndex});
+  const AppBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +28,7 @@ class AppBottomNav extends StatelessWidget {
                   label: 'Home',
                   isActive: currentIndex == 0,
                   activeColor: primary,
-                  onTap: () => _goTo(context, 0),
+                  onTap: () => onTap(0),
                 ),
               ),
               Expanded(
@@ -36,7 +37,7 @@ class AppBottomNav extends StatelessWidget {
                   label: 'Schedules',
                   isActive: currentIndex == 1,
                   activeColor: primary,
-                  onTap: () => _goTo(context, 1),
+                  onTap: () => onTap(1),
                 ),
               ),
               const SizedBox(width: 56),
@@ -46,7 +47,7 @@ class AppBottomNav extends StatelessWidget {
                   label: 'History',
                   isActive: currentIndex == 2,
                   activeColor: primary,
-                  onTap: () => _goTo(context, 2),
+                  onTap: () => onTap(2),
                 ),
               ),
               Expanded(
@@ -55,26 +56,13 @@ class AppBottomNav extends StatelessWidget {
                   label: 'Profile',
                   isActive: currentIndex == 3,
                   activeColor: primary,
-                  onTap: () => _goTo(context, 3),
+                  onTap: () => onTap(3),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  void _goTo(BuildContext context, int index) {
-    if (index == currentIndex) return;
-    final Widget screen = switch (index) {
-      0 => const MainScreen(),
-      1 => const PlannedProgramsScreen(),
-      2 => const UserCompletedProgramsScreen(),
-      _ => const UserProfileScreen(),
-    };
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => screen),
     );
   }
 }

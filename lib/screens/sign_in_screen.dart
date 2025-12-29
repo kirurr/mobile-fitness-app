@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/auth/model.dart';
 import 'package:mobile_fitness_app/auth/service.dart';
-import 'main_screen.dart';
+import 'app_shell.dart';
 import 'sign_up_screen.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -52,7 +52,7 @@ class _SignInScreenState extends State<SignInScreen> {
     }
 
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainScreen()),
+      MaterialPageRoute(builder: (_) => const AppShell()),
     );
   }
 

@@ -13,18 +13,17 @@ import 'package:mobile_fitness_app/user_completed_program/model.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:mobile_fitness_app/user_subscription/model.dart';
 import 'package:mobile_fitness_app/widgets/program_card.dart';
+import 'package:mobile_fitness_app/screens/app_shell.dart';
 import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
 import 'package:mobile_fitness_app/screens/training_start_screen.dart';
-import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
-import 'package:mobile_fitness_app/screens/planned_programs_screen.dart';
-import 'package:mobile_fitness_app/screens/user_profile_screen.dart';
-import 'package:mobile_fitness_app/widgets/app_bottom_nav.dart';
 import 'sign_in_screen.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final bool skipBootstrap;
+  final MainScreenSeedData? seedData;
+  const MainScreen({super.key, this.skipBootstrap = false, this.seedData});
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
@@ -44,6 +43,7 @@ class _MainScreenState extends State<MainScreen>
   @override
   void initState() {
     super.initState();
+    _checkingUserData = !widget.skipBootstrap;
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 360),
@@ -62,17 +62,20 @@ class _MainScreenState extends State<MainScreen>
         });
       }
     });
-    _guardAuth();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncOnStart();
-      _refreshUserData();
-      _checkUserDataOnStart();
-    });
+    if (!widget.skipBootstrap) {
+      _guardAuth();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncOnStart();
+        _refreshUserData();
+        _checkUserDataOnStart();
+      });
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (widget.skipBootstrap) return;
     final route = ModalRoute.of(context);
     if (!_routeSubscribed && route is PageRoute) {
       appRouteObserver.subscribe(this, route);
@@ -91,6 +94,7 @@ class _MainScreenState extends State<MainScreen>
 
   @override
   void didPopNext() {
+    if (widget.skipBootstrap) return;
     _syncOnReturn();
   }
 
@@ -162,6 +166,7 @@ class _MainScreenState extends State<MainScreen>
 
     final deps = DependencyScope.of(context);
     final userRepo = deps.userDataRepository;
+    final seed = widget.seedData;
 
     return Scaffold(
       appBar: AppBar(
@@ -178,6 +183,7 @@ class _MainScreenState extends State<MainScreen>
                   ),
                   StreamBuilder<UserData?>(
                     stream: userRepo.watchUserData(),
+                    initialData: seed?.userData,
                     builder: (context, snapshot) {
                       final name = snapshot.data?.name ?? '';
                       return Text(
@@ -193,11 +199,7 @@ class _MainScreenState extends State<MainScreen>
               ),
             ),
             IconButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const UserProfileScreen(),
-                ),
-              ),
+              onPressed: () => AppShell.of(context)?.setIndex(3),
               icon: const Icon(Icons.person),
               tooltip: 'Profile',
             ),
@@ -220,11 +222,7 @@ class _MainScreenState extends State<MainScreen>
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   InkWell(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const UserCompletedProgramsScreen(),
-                      ),
-                    ),
+                    onTap: () => AppShell.of(context)?.setIndex(2),
                     child: Text(
                       'History',
                       style: TextStyle(
@@ -260,36 +258,6 @@ class _MainScreenState extends State<MainScreen>
           ],
         ),
       ),
-      floatingActionButton: Transform.translate(
-        offset: const Offset(0, 6),
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.55),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: FloatingActionButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const TrainingStartScreen(),
-              ),
-            ),
-            shape: const CircleBorder(),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Colors.black,
-            elevation: 0,
-            highlightElevation: 0,
-            child: const Icon(Icons.add),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: const AppBottomNav(currentIndex: 0),
     );
   }
 
@@ -297,9 +265,11 @@ class _MainScreenState extends State<MainScreen>
     final deps = DependencyScope.of(context);
     final completedRepo = deps.userCompletedProgramRepository;
     final programRepo = deps.exerciseProgramRepository;
+    final seed = widget.seedData;
 
     return StreamBuilder<List<UserCompletedProgram>>(
       stream: completedRepo.watchCompletedPrograms(),
+      initialData: seed?.completedPrograms ?? const <UserCompletedProgram>[],
       builder: (context, completedSnapshot) {
         final completed = completedSnapshot.data ?? const <UserCompletedProgram>[];
         final active = completed
@@ -320,6 +290,7 @@ class _MainScreenState extends State<MainScreen>
 
         return StreamBuilder<List<ExerciseProgram>>(
           stream: programRepo.watchPrograms(),
+          initialData: seed?.visiblePrograms ?? const <ExerciseProgram>[],
           builder: (context, programSnapshot) {
             final programs = programSnapshot.data ?? const <ExerciseProgram>[];
             final programById = {
@@ -382,6 +353,7 @@ class _MainScreenState extends State<MainScreen>
     final deps = DependencyScope.of(context);
     final userSubscriptionRepo = deps.userSubscriptionRepository;
     final primary = Theme.of(context).colorScheme.primary;
+    final seed = widget.seedData;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -395,6 +367,8 @@ class _MainScreenState extends State<MainScreen>
           const SizedBox(height: 8),
           StreamBuilder<List<UserSubscription>>(
             stream: userSubscriptionRepo.watchUserSubscriptions(),
+            initialData:
+                seed?.userSubscriptions ?? const <UserSubscription>[],
             builder: (context, snapshot) {
               final subs = snapshot.data ?? const <UserSubscription>[];
               if (subs.isEmpty) {
@@ -594,9 +568,11 @@ class _MainScreenState extends State<MainScreen>
     final colorPrimary = Theme.of(context).colorScheme.primary;
     final deps = DependencyScope.of(context);
     final completedRepo = deps.userCompletedProgramRepository;
+    final seed = widget.seedData;
 
     return StreamBuilder<List<UserCompletedProgram>>(
       stream: completedRepo.watchCompletedPrograms(),
+      initialData: seed?.completedPrograms ?? const <UserCompletedProgram>[],
       builder: (context, snapshot) {
         final completed = snapshot.data ?? const <UserCompletedProgram>[];
         final progress = _calculateWeeklyProgress(completed);
@@ -646,9 +622,19 @@ class _MainScreenState extends State<MainScreen>
     final deps = DependencyScope.of(context);
     final plannedRepo = deps.plannedExerciseProgramRepository;
     final programRepo = deps.exerciseProgramRepository;
+    final seed = widget.seedData;
+    final initialData =
+        seed == null
+            ? const _ScheduleData()
+            : _ScheduleData(
+              planned: seed.plannedPrograms,
+              programs: seed.allPrograms,
+              isRefreshing: false,
+            );
 
     return StreamBuilder<_ScheduleData>(
       stream: _watchScheduleData(plannedRepo, programRepo),
+      initialData: initialData,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Padding(
@@ -678,11 +664,7 @@ class _MainScreenState extends State<MainScreen>
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   InkWell(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PlannedProgramsScreen(),
-                      ),
-                    ),
+                    onTap: () => AppShell.of(context)?.setIndex(1),
                     child: Text(
                       'Manage',
                       style: TextStyle(
@@ -702,11 +684,7 @@ class _MainScreenState extends State<MainScreen>
               else if (weekItems.isEmpty)
                 Center(
                   child: TextButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PlannedProgramsScreen(),
-                      ),
-                    ),
+                    onPressed: () => AppShell.of(context)?.setIndex(1),
                     child: const Text('Schedule a workout'),
                   ),
                 )
@@ -892,6 +870,7 @@ class _MainScreenState extends State<MainScreen>
     final programRepo = deps.exerciseProgramRepository;
     final difficultyRepo = deps.difficultyLevelRepository;
     final subscriptionRepo = deps.subscriptionRepository;
+    final seed = widget.seedData;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -913,6 +892,8 @@ class _MainScreenState extends State<MainScreen>
               Expanded(
                 child: StreamBuilder<List<DifficultyLevel>>(
                   stream: difficultyRepo.watchLevels(),
+                  initialData:
+                      seed?.difficultyLevels ?? const <DifficultyLevel>[],
                   builder: (context, snapshot) {
                     final items = snapshot.data ?? const <DifficultyLevel>[];
                     return DropdownButtonFormField<int?>(
@@ -945,6 +926,7 @@ class _MainScreenState extends State<MainScreen>
               Expanded(
                 child: StreamBuilder<List<Subscription>>(
                   stream: subscriptionRepo.watchSubscriptions(),
+                  initialData: seed?.subscriptions ?? const <Subscription>[],
                   builder: (context, snapshot) {
                     final items = snapshot.data ?? const <Subscription>[];
                     return DropdownButtonFormField<int?>(
@@ -978,6 +960,7 @@ class _MainScreenState extends State<MainScreen>
           const SizedBox(height: 12),
           StreamBuilder<List<ExerciseProgram>>(
             stream: programRepo.watchPrograms(),
+            initialData: seed?.visiblePrograms ?? const <ExerciseProgram>[],
             builder: (context, snapshot) {
               final programs = snapshot.data ?? const <ExerciseProgram>[];
               final filtered = programs.where((program) {
@@ -1002,6 +985,8 @@ class _MainScreenState extends State<MainScreen>
 
               return StreamBuilder<List<UserSubscription>>(
                 stream: deps.userSubscriptionRepository.watchUserSubscriptions(),
+                initialData:
+                    seed?.userSubscriptions ?? const <UserSubscription>[],
                 builder: (context, subSnapshot) {
                   final userSubscriptions =
                       subSnapshot.data ?? const <UserSubscription>[];
@@ -1215,9 +1200,10 @@ class _MainScreenState extends State<MainScreen>
           _ScheduleData(
             planned: planned,
             programs: programs,
-            isRefreshing: !hasPlannedUpdate,
+            isRefreshing: false,
           ),
         );
+        hasPlannedUpdate = true;
       } catch (error, stackTrace) {
         controller.addError(error, stackTrace);
       }
@@ -1374,5 +1360,27 @@ class _ScheduleData {
     this.planned = const [],
     this.programs = const [],
     this.isRefreshing = true,
+  });
+}
+
+class MainScreenSeedData {
+  final UserData? userData;
+  final List<ExerciseProgram> visiblePrograms;
+  final List<ExerciseProgram> allPrograms;
+  final List<PlannedExerciseProgram> plannedPrograms;
+  final List<UserCompletedProgram> completedPrograms;
+  final List<UserSubscription> userSubscriptions;
+  final List<Subscription> subscriptions;
+  final List<DifficultyLevel> difficultyLevels;
+
+  const MainScreenSeedData({
+    required this.userData,
+    required this.visiblePrograms,
+    required this.allPrograms,
+    required this.plannedPrograms,
+    required this.completedPrograms,
+    required this.userSubscriptions,
+    required this.subscriptions,
+    required this.difficultyLevels,
   });
 }

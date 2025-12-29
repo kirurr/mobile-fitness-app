@@ -3,7 +3,7 @@ import 'package:mobile_fitness_app/app/dependencies.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/app/route_observer.dart';
 import 'auth/service.dart';
-import 'screens/main_screen.dart';
+import 'screens/app_shell.dart';
 import 'screens/sign_in_screen.dart';
 
 Future main() async {
@@ -95,7 +95,7 @@ class AuthGate extends StatelessWidget {
         }
 
         final isLoggedIn = snapshot.data ?? false;
-        return isLoggedIn ? const MainScreen() : const SignInScreen();
+        return isLoggedIn ? const AppShell() : const SignInScreen();
       },
     );
   }

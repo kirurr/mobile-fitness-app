@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
-import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
-import 'package:mobile_fitness_app/widgets/app_bottom_nav.dart';
 
 class UserCompletedProgramsScreen extends StatelessWidget {
   const UserCompletedProgramsScreen({super.key});
@@ -28,17 +26,9 @@ class UserCompletedProgramsScreen extends StatelessWidget {
             for (final program in programs) program.id: program,
           };
 
-          if (programsSnapshot.connectionState == ConnectionState.waiting &&
-              programs.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
           return StreamBuilder<List<UserCompletedProgram>>(
             stream: completedRepo.watchCompletedPrograms(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
               if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));
               }
@@ -217,36 +207,6 @@ class UserCompletedProgramsScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: Transform.translate(
-        offset: const Offset(0, 6),
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.55),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: FloatingActionButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const TrainingStartScreen(),
-              ),
-            ),
-            shape: const CircleBorder(),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Colors.black,
-            elevation: 0,
-            highlightElevation: 0,
-            child: const Icon(Icons.add),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: const AppBottomNav(currentIndex: 2),
     );
   }
 

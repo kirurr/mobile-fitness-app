@@ -87,10 +87,26 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
 
       final userSubscriptions =
           await deps.userSubscriptionRepository.getLocalUserSubscriptions();
+      final programs = await deps.exerciseProgramRepository.getLocalPrograms();
+
+      ExerciseProgram? selected = _selectedProgram;
+      if (selected != null) {
+        final match = programs.where((item) => item.id == selected!.id);
+        selected = match.isNotEmpty ? match.first : null;
+      }
+      if (selected == null && widget.initialProgramId != null) {
+        final match =
+            programs.where((item) => item.id == widget.initialProgramId);
+        selected = match.isNotEmpty ? match.first : null;
+      }
+      selected ??= programs.isNotEmpty ? programs.first : null;
 
       setState(() {
         _userData = userData;
         _userSubscriptions = userSubscriptions;
+        _availablePrograms = programs;
+        _selectedProgram = selected;
+        _loading = false;
       });
 
       await _programsSub?.cancel();
@@ -112,7 +128,6 @@ class _TrainingStartScreenState extends State<TrainingStartScreen>
           setState(() {
             _availablePrograms = programs;
             _selectedProgram = selected;
-            _loading = false;
           });
         },
         onError: (e) {

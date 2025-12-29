@@ -6,8 +6,6 @@ import 'package:mobile_fitness_app/fitness_goal/model.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/sign_in_screen.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
-import 'package:mobile_fitness_app/widgets/app_bottom_nav.dart';
-import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -501,36 +499,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 );
               },
             ),
-      floatingActionButton: Transform.translate(
-        offset: const Offset(0, 6),
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.55),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: FloatingActionButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const TrainingStartScreen(),
-              ),
-            ),
-            shape: const CircleBorder(),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Colors.black,
-            elevation: 0,
-            highlightElevation: 0,
-            child: const Icon(Icons.add),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: const AppBottomNav(currentIndex: 3),
     );
   }
 }
