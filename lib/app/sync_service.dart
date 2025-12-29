@@ -57,9 +57,11 @@ class SyncService {
     try {
       await _syncWithRetry(difficultyLevelRepository.refreshLevels);
       await _delayBetween();
-      await _syncWithRetry(subscriptionRepository.refreshSubscriptions);
-      await _delayBetween();
       await _syncWithRetry(fitnessGoalRepository.refreshGoals);
+      await _delayBetween();
+      await _syncWithRetry(userDataRepository.refreshUserData);
+      await _delayBetween();
+      await _syncWithRetry(subscriptionRepository.refreshSubscriptions);
       await _delayBetween();
       await _syncWithRetry(exerciseCategoryRepository.refreshCategories);
       await _delayBetween();
@@ -76,8 +78,6 @@ class SyncService {
       await _syncWithRetry(plannedExerciseProgramRepository.refreshPlannedPrograms);
       await _delayBetween();
       await _syncWithRetry(userCompletedProgramRepository.refreshCompletedPrograms);
-      await _delayBetween();
-      await _syncWithRetry(userDataRepository.refreshUserData);
     } finally {
       _isSyncing = false;
     }

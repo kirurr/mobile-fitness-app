@@ -1,110 +1,69 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/app/dependencies.dart';
+import 'package:mobile_fitness_app/difficulty_level/model.dart';
 import 'package:mobile_fitness_app/exercise/model.dart';
+import 'package:mobile_fitness_app/exercise_category/model.dart';
+import 'package:mobile_fitness_app/muscle_group/model.dart';
 import 'package:mobile_fitness_app/exercise_program/dto.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
-import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
-import 'package:mobile_fitness_app/user_subscription/model.dart';
+import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/dto.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
 import 'package:mobile_fitness_app/user_completed_program/dto.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
-import 'package:mobile_fitness_app/widgets/program_card.dart';
 
 class TrainingScreen extends StatefulWidget {
   final int? completedProgramId;
-  final int? initialProgramId;
 
-  const TrainingScreen({super.key, this.completedProgramId, this.initialProgramId});
+  const TrainingScreen({super.key, this.completedProgramId});
 
   @override
   State<TrainingScreen> createState() => _TrainingScreenState();
 }
 
-class _TrainingScreenState extends State<TrainingScreen>
-    with TickerProviderStateMixin {
+class _TrainingScreenState extends State<TrainingScreen> {
   ExerciseProgram? _program;
   UserCompletedProgram? _completedProgram;
   UserData? _userData;
   List<Exercise> _exercises = [];
-  List<ExerciseProgram> _availablePrograms = [];
-  ExerciseProgram? _selectedProgram;
-  List<UserSubscription> _userSubscriptions = [];
-  List<UserCompletedExercise> _currentCompletedExercises = [];
   final Map<int, _ExerciseEditors> _editControllers = {};
   List<UserCompletedExercise> _completedCache = [];
 
   bool _loading = true;
-  bool _savingExercise = false;
   bool _endingProgram = false;
-  bool _startingProgram = false;
-  bool _startingCustomProgram = false;
   bool _savingProgram = false;
   String? _error;
 
-  int? _selectedExerciseId;
-  final TextEditingController _setsController = TextEditingController(
-    text: '1',
-  );
-  final TextEditingController _repsController = TextEditingController(
-    text: '10',
-  );
-  final TextEditingController _durationController = TextEditingController(
-    text: '30',
-  );
-  final TextEditingController _restController = TextEditingController(
-    text: '60',
-  );
-  final TextEditingController _weightController = TextEditingController(
-    text: '0',
-  );
   final TextEditingController _programNameController = TextEditingController();
   final TextEditingController _startDateController = TextEditingController();
   final TextEditingController _endDateController = TextEditingController();
-  late final AnimationController _shakeController;
-  late final Animation<double> _shakeAnimation;
-  int? _shakingProgramId;
+  Timer? _programMetaDebounce;
+  Timer? _elapsedTimer;
+  Duration _elapsed = Duration.zero;
+  final Map<int, Timer> _inlineSaveTimers = {};
 
   @override
   void initState() {
     super.initState();
-    _shakeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-    );
-    _shakeAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 6, end: -4), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -4, end: 4), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 4, end: 0), weight: 1),
-    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
-    _shakeController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        setState(() {
-          _shakingProgramId = null;
-        });
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   @override
   void dispose() {
-    _setsController.dispose();
-    _repsController.dispose();
-    _durationController.dispose();
-    _restController.dispose();
-    _weightController.dispose();
     _programNameController.dispose();
     _startDateController.dispose();
     _endDateController.dispose();
     for (final entry in _editControllers.values) {
       entry.dispose();
     }
-    _shakeController.dispose();
+    _programMetaDebounce?.cancel();
+    _elapsedTimer?.cancel();
+    for (final timer in _inlineSaveTimers.values) {
+      timer.cancel();
+    }
     super.dispose();
   }
 
@@ -134,11 +93,8 @@ class _TrainingScreenState extends State<TrainingScreen>
         return;
       }
       final programs = await deps.exerciseProgramRepository.getLocalPrograms();
-      final userSubscriptions =
-          await deps.userSubscriptionRepository.getLocalUserSubscriptions();
 
       final completedProgramId = widget.completedProgramId;
-      final initialProgramId = widget.initialProgramId;
       UserCompletedProgram? completedProgram;
       ExerciseProgram? selectedProgram;
       List<UserCompletedExercise> completedExercises = [];
@@ -159,30 +115,24 @@ class _TrainingScreenState extends State<TrainingScreen>
             _findProgramById(programs, completedProgram.programId);
         completedExercises = await deps.userCompletedExerciseRepository
             .getLocalCompletedExercises(completedProgram.id);
-      } else if (initialProgramId != null) {
-        selectedProgram = _findProgramById(programs, initialProgramId);
       }
-
       if (!mounted) return;
       setState(() {
         _userData = userData;
         _exercises = exercises;
-        _availablePrograms = programs;
-        _selectedProgram =
-            selectedProgram ?? (programs.isNotEmpty ? programs.first : null);
         _program = selectedProgram;
         _completedProgram = completedProgram;
-        _currentCompletedExercises = completedExercises;
         _completedCache = completedExercises;
-        _userSubscriptions = userSubscriptions;
-        _selectedExerciseId = null;
         _editControllers.clear();
         _loading = false;
       });
-      _syncProgramMetaEditors(
-        program: selectedProgram,
-        completedProgram: completedProgram,
-      );
+      if (completedProgram != null) {
+        _syncProgramMetaEditors(
+          program: selectedProgram,
+          completedProgram: completedProgram,
+        );
+        _syncElapsedTimer();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -209,24 +159,41 @@ class _TrainingScreenState extends State<TrainingScreen>
     return null;
   }
 
+  bool _isTimed(int? exerciseId) {
+    final exercise = _findExercise(exerciseId);
+    final type = exercise?.type.toLowerCase() ?? '';
+    return type.contains('time') ||
+        type.contains('timed') ||
+        type == 'duration';
+  }
+
   void _syncProgramMetaEditors({
     ExerciseProgram? program,
     UserCompletedProgram? completedProgram,
   }) {
     _programNameController.text = program?.name ?? '';
-    _startDateController.text = completedProgram?.startDate ?? '';
-    _endDateController.text = completedProgram?.endDate ?? '';
+    _startDateController.text = _formatDateTimeInput(completedProgram?.startDate);
+    _endDateController.text = _formatDateTimeInput(completedProgram?.endDate);
   }
 
   String? _parseDateInput(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return null;
-    final parsed = DateTime.tryParse(trimmed);
+    var normalized = trimmed;
+    if (normalized.contains(' ') && !normalized.contains('T')) {
+      normalized = normalized.replaceFirst(' ', 'T');
+    }
+    if (RegExp(r'\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$')
+        .hasMatch(normalized)) {
+      normalized = '$normalized:00';
+    }
+    final parsed = DateTime.tryParse(normalized);
     if (parsed == null) return null;
     return parsed.toUtc().toIso8601String();
   }
 
-  Future<void> _saveProgramMeta() async {
+  Future<void> _saveProgramMeta({bool showFeedback = true}) async {
+    if (_savingProgram) return;
     final program = _program;
     final completedProgram = _completedProgram;
     if (program == null || completedProgram == null) {
@@ -235,28 +202,31 @@ class _TrainingScreenState extends State<TrainingScreen>
 
     final name = _programNameController.text.trim();
     if (name.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Program name is required')),
-      );
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Program name is required')),
+        );
+      }
       return;
     }
 
     final startIso = _parseDateInput(_startDateController.text);
     if (startIso == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid start date')),
-      );
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid start date')),
+        );
+      }
       return;
     }
     final endText = _endDateController.text.trim();
     final endIso = endText.isEmpty ? null : _parseDateInput(endText);
     if (endText.isNotEmpty && endIso == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid end date')),
-      );
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid end date')),
+        );
+      }
       return;
     }
 
@@ -266,10 +236,11 @@ class _TrainingScreenState extends State<TrainingScreen>
                 : null) ??
         _userData?.trainingLevel.value?.id;
     if (difficultyId == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Difficulty level is required')),
-      );
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Difficulty level is required')),
+        );
+      }
       return;
     }
 
@@ -332,9 +303,12 @@ class _TrainingScreenState extends State<TrainingScreen>
         program: updatedProgram,
         completedProgram: _completedProgram,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Program updated')),
-      );
+      _syncElapsedTimer();
+      if (showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Program updated')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -344,125 +318,6 @@ class _TrainingScreenState extends State<TrainingScreen>
       if (mounted) {
         setState(() {
           _savingProgram = false;
-        });
-      }
-    }
-  }
-
-  void _prefillFromExisting(int? exerciseId) {
-    if (exerciseId == null) return;
-    final existing = _currentCompletedExercises.firstWhere(
-      (c) => c.exerciseId == exerciseId,
-      orElse: () => UserCompletedExercise(
-        id: -1,
-        completedProgramId: _completedProgram?.id ?? -1,
-        programExerciseId: null,
-        exerciseId: exerciseId,
-        sets: 1,
-        reps: null,
-        duration: null,
-        weight: null,
-        restDuration: null,
-      ),
-    );
-
-    _setsController.text = existing.sets.toString();
-    _restController.text = (existing.restDuration ?? 60).toString();
-    _weightController.text = (existing.weight ?? 0).toString();
-    final isTimed = _isTimed(exerciseId);
-    if (isTimed) {
-      _durationController.text = (existing.duration ?? 30).toString();
-    } else {
-      _repsController.text = (existing.reps ?? 10).toString();
-    }
-  }
-
-  bool _isTimed(int? exerciseId) {
-    final exercise = _findExercise(exerciseId);
-    final type = exercise?.type.toLowerCase() ?? '';
-    return type.contains('time') ||
-        type.contains('timed') ||
-        type == 'duration';
-  }
-
-  bool _isTimedSelected() {
-    return _isTimed(_selectedExerciseId);
-  }
-
-  Future<void> _saveExercise() async {
-    final completedProgram = _completedProgram;
-    if (completedProgram == null || _selectedExerciseId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Select an exercise first')));
-      return;
-    }
-
-    final sets = int.tryParse(_setsController.text) ?? 1;
-    final rest = int.tryParse(_restController.text);
-    final isTimed = _isTimedSelected();
-    final reps = isTimed ? null : int.tryParse(_repsController.text);
-    final duration = isTimed ? int.tryParse(_durationController.text) : null;
-    final weight = int.tryParse(_weightController.text);
-
-    final existing = _currentCompletedExercises.firstWhere(
-      (c) => c.exerciseId == _selectedExerciseId,
-      orElse: () => UserCompletedExercise(
-        id: -1,
-        completedProgramId: completedProgram.id,
-        programExerciseId: null,
-        exerciseId: _selectedExerciseId,
-        sets: 0,
-        reps: null,
-        duration: null,
-        weight: null,
-        restDuration: null,
-      ),
-    );
-
-    final payload = UserCompletedExercisePayloadDTO(
-      completedProgramId: completedProgram.id,
-      programExerciseId: existing.programExerciseId,
-      exerciseId: _selectedExerciseId,
-      sets: sets,
-      reps: reps,
-      duration: duration,
-      weight: weight ?? existing.weight,
-      restDuration: rest,
-    );
-
-    setState(() {
-      _savingExercise = true;
-    });
-
-    try {
-      final repo = DependencyScope.of(context).userCompletedExerciseRepository;
-      final programRepo =
-          DependencyScope.of(context).userCompletedProgramRepository;
-      if (existing.id == -1) {
-        await repo.create(payload, triggerSync: false);
-      } else {
-        await repo.update(existing.id, payload, triggerSync: false);
-      }
-      await programRepo.refreshLocalLinksForProgram(completedProgram.id);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            existing.id == -1 ? 'Exercise added' : 'Exercise updated',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save exercise: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _savingExercise = false;
         });
       }
     }
@@ -517,11 +372,12 @@ class _TrainingScreenState extends State<TrainingScreen>
         await _syncProgramExercisesFromCompleted(deps);
       }
 
+      final endIso = DateTime.now().toUtc().toIso8601String();
       final payload = UserCompletedProgramPayloadDTO(
         userId: completedProgram.userId,
         programId: completedProgram.programId,
         startDate: completedProgram.startDate,
-        endDate: DateTime.now().toUtc().toIso8601String(),
+        endDate: endIso,
       );
 
       await deps.userCompletedProgramRepository.update(
@@ -537,13 +393,15 @@ class _TrainingScreenState extends State<TrainingScreen>
           userId: completedProgram.userId,
           programId: completedProgram.programId,
           startDate: completedProgram.startDate,
-          endDate: payload.endDate,
+          endDate: endIso,
         );
       });
       _syncProgramMetaEditors(
         program: _program,
         completedProgram: _completedProgram,
       );
+      _endDateController.text = _formatDateTimeInput(endIso);
+      _syncElapsedTimer();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Workout finished')));
@@ -640,76 +498,119 @@ class _TrainingScreenState extends State<TrainingScreen>
   Widget build(BuildContext context) {
     final completedProgram = _completedProgram;
     return Scaffold(
-      appBar: AppBar(title: const Text('Start workout')),
+      appBar: AppBar(title: const Text('Training')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(child: Text(_error!))
           : completedProgram == null
-          ? _programSelection()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _programInfo(),
-                  const SizedBox(height: 16),
-                  _programMetaEditor(),
-                  StreamBuilder<List<UserCompletedExercise>>(
-                    stream: DependencyScope.of(context)
-                        .userCompletedExerciseRepository
-                        .watchCompletedExercises(completedProgram.id),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData) {
-                        final data = snapshot.data ?? const [];
-                        if (data.isNotEmpty || _completedCache.isEmpty) {
-                          _completedCache = data;
-                          _currentCompletedExercises = data;
-                        }
-                      }
-
-                      final items = snapshot.data ?? _completedCache;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (completedProgram.endDate != null) ...[
-                            const SizedBox(height: 16),
-                            _completedSummaryCard(items),
-                          ],
-                          const SizedBox(height: 16),
-                          _addExerciseCard(),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Completed Exercises',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildCompletedExercisesList(snapshot, items),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _endingProgram ? null : _finishProgram,
-                              child: _endingProgram
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Finish Workout'),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+          ? Center(
+              child: SizedBox(
+                width: 220,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (_) => const TrainingStartScreen(),
+                    ),
                   ),
-                ],
+                  child: const Text('Choose a program'),
+                ),
               ),
+            )
+          : Stack(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _programMetaEditor(),
+                      StreamBuilder<List<UserCompletedExercise>>(
+                        stream: DependencyScope.of(context)
+                            .userCompletedExerciseRepository
+                            .watchCompletedExercises(completedProgram.id),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            final data = snapshot.data ?? const [];
+                            if (data.isNotEmpty || _completedCache.isEmpty) {
+                              _completedCache = data;
+                            }
+                          }
+
+                          final items = snapshot.data ?? _completedCache;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (completedProgram.endDate != null) ...[
+                                const SizedBox(height: 16),
+                                _completedSummaryCard(items),
+                              ],
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Completed Exercises',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _buildCompletedExercisesList(snapshot, items),
+                              const SizedBox(height: 16),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        border: const Border(
+                          top: BorderSide(color: Colors.white12),
+                        ),
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.6),
+                              blurRadius: 18,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _endingProgram ? null : _finishProgram,
+                            icon: const Icon(Icons.flag),
+                            label: _endingProgram
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Finish Workout'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -768,35 +669,27 @@ class _TrainingScreenState extends State<TrainingScreen>
                     _compactNumberField(
                       controller: editors.sets,
                       label: 'Sets',
+                      onChanged: () => _scheduleInlineSave(item, editors, isTimed),
                     ),
                     const SizedBox(width: 8),
                     _compactNumberField(
                       controller: isTimed ? editors.duration : editors.reps,
                       label: isTimed ? 'Duration (s)' : 'Reps',
+                      onChanged: () => _scheduleInlineSave(item, editors, isTimed),
                     ),
                     const SizedBox(width: 8),
                     _compactNumberField(
                       controller: editors.rest,
                       label: 'Rest (s)',
+                      onChanged: () => _scheduleInlineSave(item, editors, isTimed),
                     ),
                     const SizedBox(width: 8),
                     _compactNumberField(
                       controller: editors.weight,
                       label: 'Weight',
+                      onChanged: () => _scheduleInlineSave(item, editors, isTimed),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () => _saveInlineEdit(
-                      item,
-                      editors,
-                      isTimed,
-                    ),
-                    child: const Text('Save'),
-                  ),
                 ),
               ],
             ),
@@ -806,477 +699,363 @@ class _TrainingScreenState extends State<TrainingScreen>
     );
   }
 
-  Widget _programInfo() {
-    final programGoals = _program?.fitnessGoals
-            .map((goal) => goal.name)
-            .toList(growable: false) ??
-        const <String>[];
-    final goalText = programGoals.isNotEmpty
-        ? programGoals.join(', ')
-        : (_userData?.fitnessGoal.value?.name ?? '-');
-    final difficulty =
-        (_program?.difficultyLevel.isNotEmpty == true
-                ? _program!.difficultyLevel.first.name
-                : null) ??
-        _userData?.trainingLevel.value?.name ??
-        '-';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Current Workout',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text('Program: ${_program?.name ?? 'untitled program'}'),
-            Text('Started: ${_formatDateTime(_completedProgram?.startDate)}'),
-            Text('Goal: $goalText'),
-            Text('Difficulty: $difficulty'),
-          ],
+
+  Widget _buildDateTimeField({
+    required String label,
+    required TextEditingController controller,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AbsorbPointer(
+        child: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: 'YYYY-MM-DD HH:MM',
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _startSelectedProgram() async {
-    final userData = _userData;
-    final program = _selectedProgram;
-    if (userData == null || program == null) return;
-    if (!_hasSubscriptionAccess(program)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Subscription required to start workout')),
-      );
+  Future<void> _pickDateTime(
+    TextEditingController controller, {
+    bool allowEmpty = false,
+  }) async {
+    final now = DateTime.now();
+    final initial = _parseDateInput(controller.text) != null
+        ? DateTime.parse(_parseDateInput(controller.text)!).toLocal()
+        : now;
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (pickedDate == null) {
+      if (allowEmpty && controller.text.isNotEmpty) {
+        controller.text = '';
+        _scheduleProgramMetaSave();
+      }
       return;
     }
-
-    setState(() {
-      _startingProgram = true;
-    });
-
-    try {
-      final deps = DependencyScope.of(context);
-      final nowIso = DateTime.now().toUtc().toIso8601String();
-      final completedProgramPayload = UserCompletedProgramPayloadDTO(
-        userId: userData.userId,
-        programId: program.id,
-        startDate: nowIso,
-        endDate: null,
-      );
-
-      final createdCompletedProgram = await deps.userCompletedProgramRepository
-          .create(completedProgramPayload, triggerSync: false);
-
-      final completedExerciseRepo = deps.userCompletedExerciseRepository;
-      for (final programExercise in program.programExercises) {
-        final payload = UserCompletedExercisePayloadDTO(
-          completedProgramId: createdCompletedProgram.id,
-          programExerciseId: programExercise.id,
-          exerciseId: programExercise.exerciseId,
-          sets: programExercise.sets,
-          reps: programExercise.reps,
-          duration: programExercise.duration,
-          weight: null,
-          restDuration: programExercise.restDuration,
-        );
-        await completedExerciseRepo.create(payload, triggerSync: false);
-      }
-
-      await deps.userCompletedProgramRepository.refreshLocalLinksForProgram(
-        createdCompletedProgram.id,
-      );
-      final completedExercises = await completedExerciseRepo
-          .getLocalCompletedExercises(createdCompletedProgram.id);
-
-      if (!mounted) return;
-      setState(() {
-        _program = program;
-        _completedProgram = createdCompletedProgram;
-        _currentCompletedExercises = completedExercises;
-        _completedCache = completedExercises;
-        _selectedExerciseId = null;
-        _editControllers.clear();
-      });
-      _syncProgramMetaEditors(
-        program: program,
-        completedProgram: createdCompletedProgram,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to start workout: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _startingProgram = false;
-        });
-      }
-    }
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (pickedTime == null) return;
+    final value = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    controller.text = _formatDateTimeInput(value.toIso8601String());
+    _scheduleProgramMetaSave();
   }
 
-  Future<void> _startCustomProgram() async {
-    final userData = _userData;
-    if (userData == null) return;
-
-    final difficultyId = userData.trainingLevel.value?.id;
-    if (difficultyId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Training level not set for user.')),
-      );
-      return;
-    }
-
-    setState(() {
-      _startingCustomProgram = true;
-    });
-
-    try {
-      final deps = DependencyScope.of(context);
-      final fitnessGoalId = userData.fitnessGoal.value?.id;
-      final programPayload = ExerciseProgramPayloadDTO(
-        name: 'untitled program',
-        description: 'Generated training',
-        difficultyLevelId: difficultyId,
-        subscriptionId: null,
-        userId: userData.userId,
-        fitnessGoalIds: fitnessGoalId != null ? [fitnessGoalId] : [],
-        exercises: const [],
-      );
-
-      final createdProgram =
-          await deps.exerciseProgramRepository.createLocalProgram(programPayload);
-
-      final nowIso = DateTime.now().toUtc().toIso8601String();
-      final completedProgramPayload = UserCompletedProgramPayloadDTO(
-        userId: userData.userId,
-        programId: createdProgram.id,
-        startDate: nowIso,
-        endDate: null,
-      );
-
-      final createdCompletedProgram = await deps.userCompletedProgramRepository
-          .create(completedProgramPayload, triggerSync: false);
-
-      if (!mounted) return;
-      setState(() {
-        _program = createdProgram;
-        _completedProgram = createdCompletedProgram;
-        _currentCompletedExercises = [];
-        _completedCache = [];
-        _selectedExerciseId = null;
-        _editControllers.clear();
-      });
-      _syncProgramMetaEditors(
-        program: createdProgram,
-        completedProgram: createdCompletedProgram,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to start workout: $e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _startingCustomProgram = false;
-        });
-      }
-    }
-  }
-
-  Widget _addExerciseCard() {
-    final isTimed = _isTimedSelected();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Add / Update Exercise',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int?>(
-              decoration: const InputDecoration(labelText: 'Exercise'),
-              initialValue: _selectedExerciseId,
-              items: _exercises
-                  .map(
-                    (ex) => DropdownMenuItem<int?>(
-                      value: ex.id,
-                      child: Text('${ex.name} (${ex.type})'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) {
-                setState(() => _selectedExerciseId = val);
-                _prefillFromExisting(val);
-              },
-            ),
-            TextField(
-              controller: _setsController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Sets completed'),
-            ),
-            TextField(
-              controller: isTimed ? _durationController : _repsController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: isTimed ? 'Duration (seconds)' : 'Reps',
-              ),
-            ),
-            TextField(
-              controller: _restController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Rest (seconds)'),
-            ),
-            TextField(
-              controller: _weightController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Weight (optional)'),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _savingExercise ? null : _saveExercise,
-                child: _savingExercise
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save Exercise'),
-              ),
-            ),
-          ],
-        ),
-      ),
+  void _scheduleProgramMetaSave() {
+    _programMetaDebounce?.cancel();
+    _syncElapsedTimer();
+    _programMetaDebounce = Timer(
+      const Duration(milliseconds: 500),
+      () => _saveProgramMeta(showFeedback: false),
     );
   }
 
-  Widget _programSelection() {
-    final selected = _selectedProgram;
-    final hasSubscriptionAccess =
-        selected != null ? _hasSubscriptionAccess(selected) : false;
-    final selectedName = selected?.name ?? '-';
-    final hasSelectedExercises = selected?.programExercises.isNotEmpty ?? false;
+  String _formatDateTimeInput(String? value) {
+    if (value == null || value.trim().isEmpty) return '';
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return '';
+    final local = parsed.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
 
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFreeWorkoutCard(context),
-              const SizedBox(height: 16),
-              if (_availablePrograms.isEmpty) ...[
-                const Text('No programs available. Please sync or create one.'),
-              ] else ...[
-                const Text(
-                  'Choose a program',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Column(
-                  children: _availablePrograms.map((program) {
-                    final subscription =
-                        program.subscription.isNotEmpty
-                            ? program.subscription.first
-                            : null;
-                    final difficulty =
-                        program.difficultyLevel.isNotEmpty
-                            ? program.difficultyLevel.first
-                            : null;
-                    final durationText = _formatProgramDuration(program);
-                    final exerciseCount = program.programExercises.length;
-                    final hasAccess = _hasSubscriptionAccess(program);
-                    final shouldShake = _shakingProgramId == program.id;
-                    final card = ProgramCard(
-                      title: program.name,
-                      description: program.description,
-                      durationText: durationText,
-                      exerciseCount: exerciseCount,
-                      subscriptionName: subscription?.name ?? 'Free',
-                      isFree: subscription == null,
-                      difficultyName: difficulty?.name ?? '-',
-                      isSelected: selected?.id == program.id,
-                      onTap: () {
-                        if (!hasAccess) {
-                          _triggerProgramShake(program.id);
-                          _showSubscriptionRequiredToast(
-                            context,
-                            subscription?.name,
-                          );
-                          return;
-                        }
-                        setState(() => _selectedProgram = program);
-                      },
-                    );
+  Future<void> _showAddExerciseDialog() async {
+    final completedProgram = _completedProgram;
+    if (completedProgram == null) return;
+    final deps = DependencyScope.of(context);
+    final selectedIds = <int>{};
+    var search = '';
+    final selectedCategories = <int>{};
+    final selectedDifficulties = <int>{};
+    int? selectedMuscleId;
 
-                    if (!shouldShake) return card;
-                    return AnimatedBuilder(
-                      animation: _shakeController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(_shakeAnimation.value, 0),
-                          child: child,
-                        );
-                      },
-                      child: card,
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add exercises'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: StreamBuilder<List<Exercise>>(
+                  stream: deps.exerciseRepository.watchExercises(),
+                  builder: (context, snapshot) {
+                    final exercises = snapshot.data ?? const <Exercise>[];
+                    final categoryMap = <int, ExerciseCategory>{};
+                    final muscleMap = <int, MuscleGroup>{};
+                    final difficultyMap = <int, DifficultyLevel>{};
+                    for (final ex in exercises) {
+                      final category = ex.category.value;
+                      if (category != null) {
+                        categoryMap[category.id] = category;
+                      }
+                      final muscle = ex.muscleGroup.value;
+                      if (muscle != null) {
+                        muscleMap[muscle.id] = muscle;
+                      }
+                      final difficulty = ex.difficultyLevel.value;
+                      if (difficulty != null) {
+                        difficultyMap[difficulty.id] = difficulty;
+                      }
+                    }
+
+                    final filtered = exercises.where((ex) {
+                      final name = ex.name.toLowerCase();
+                      if (search.isNotEmpty &&
+                          !name.contains(search.toLowerCase())) {
+                        return false;
+                      }
+                      final categoryId = ex.category.value?.id;
+                      if (selectedCategories.isNotEmpty &&
+                          (categoryId == null ||
+                              !selectedCategories.contains(categoryId))) {
+                        return false;
+                      }
+                      final difficultyId = ex.difficultyLevel.value?.id;
+                      if (selectedDifficulties.isNotEmpty &&
+                          (difficultyId == null ||
+                              !selectedDifficulties.contains(difficultyId))) {
+                        return false;
+                      }
+                      final muscleId = ex.muscleGroup.value?.id;
+                      if (selectedMuscleId != null &&
+                          muscleId != selectedMuscleId) {
+                        return false;
+                      }
+                      return true;
+                    }).toList();
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Search by name',
+                          ),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              search = value.trim();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Category',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: categoryMap.values.map((category) {
+                            final isSelected =
+                                selectedCategories.contains(category.id);
+                            return FilterChip(
+                              selected: isSelected,
+                              label: Text(category.name),
+                              onSelected: (selected) {
+                                setDialogState(() {
+                                  if (selected) {
+                                    selectedCategories.add(category.id);
+                                  } else {
+                                    selectedCategories.remove(category.id);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Difficulty',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: difficultyMap.values.map((difficulty) {
+                            final isSelected =
+                                selectedDifficulties.contains(difficulty.id);
+                            return FilterChip(
+                              selected: isSelected,
+                              label: Text(difficulty.name),
+                              onSelected: (selected) {
+                                setDialogState(() {
+                                  if (selected) {
+                                    selectedDifficulties.add(difficulty.id);
+                                  } else {
+                                    selectedDifficulties.remove(difficulty.id);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<int?>(
+                          value: selectedMuscleId,
+                          decoration:
+                              const InputDecoration(labelText: 'Muscle group'),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('All'),
+                            ),
+                            ...muscleMap.values.map(
+                              (muscle) => DropdownMenuItem<int?>(
+                                value: muscle.id,
+                                child: Text(muscle.name),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              selectedMuscleId = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 240,
+                          child: ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final ex = filtered[index];
+                              final isSelected = selectedIds.contains(ex.id);
+                              return ListTile(
+                                title: Text(ex.name),
+                                subtitle: Text(ex.type),
+                                trailing: isSelected
+                                    ? const Icon(Icons.check_circle)
+                                    : const Icon(Icons.circle_outlined),
+                                onTap: () {
+                                  setDialogState(() {
+                                    if (isSelected) {
+                                      selectedIds.remove(ex.id);
+                                    } else {
+                                      selectedIds.add(ex.id);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     );
-                  }).toList(),
+                  },
                 ),
-                const SizedBox(height: 12),
-                if (selected != null && !hasSelectedExercises)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Selected program has no exercises.',
-                      style: TextStyle(color: Colors.red),
-                    ),
+              ),
+              actions: [
+                if (selectedIds.isNotEmpty)
+                  ElevatedButton(
+                    onPressed: () async {
+                      final exercises = await deps.exerciseRepository
+                          .getLocalExercises();
+                      final toAdd = exercises
+                          .where((ex) => selectedIds.contains(ex.id))
+                          .toList();
+                      await _addSelectedExercises(completedProgram.id, toAdd);
+                      if (mounted) Navigator.of(context).pop();
+                    },
+                    child: Text('Add exercises (${selectedIds.length})'),
                   ),
               ],
-            ],
-          ),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _buildProgramSelectionBar(
-            context,
-            selectedName: selectedName,
-            canStart:
-                selected != null &&
-                hasSelectedExercises &&
-                hasSubscriptionAccess &&
-                !_startingProgram,
-          ),
-        ),
-      ],
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildFreeWorkoutCard(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: _startingCustomProgram ? null : _startCustomProgram,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C271E),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: primary,
-                boxShadow: [
-                  BoxShadow(
-                    color: primary.withOpacity(0.6),
-                    blurRadius: 16,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.add, color: Colors.black),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Custom workout',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Start without a program and build your own.',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            if (_startingCustomProgram)
-              const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _addSelectedExercises(
+    int completedProgramId,
+    List<Exercise> exercises,
+  ) async {
+    if (exercises.isEmpty) return;
+    final repo = DependencyScope.of(context).userCompletedExerciseRepository;
+    for (final exercise in exercises) {
+      final isTimed = _isTimed(exercise.id);
+      final payload = UserCompletedExercisePayloadDTO(
+        completedProgramId: completedProgramId,
+        programExerciseId: null,
+        exerciseId: exercise.id,
+        sets: 1,
+        reps: isTimed ? null : 10,
+        duration: isTimed ? 60 : null,
+        weight: 0,
+        restDuration: 60,
+      );
+      await repo.create(payload, triggerSync: false);
+    }
   }
 
-  Widget _buildProgramSelectionBar(
-    BuildContext context, {
-    required String selectedName,
-    required bool canStart,
-  }) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: const Border(
-            top: BorderSide(color: Colors.white12),
-          ),
-        ),
+  Widget _buildElapsedSection() {
+    final hours = _elapsed.inHours;
+    final minutes = _elapsed.inMinutes.remainder(60);
+    final seconds = _elapsed.inSeconds.remainder(60);
+    String two(int v) => v.toString().padLeft(2, '0');
+    const muted = TextStyle(color: Colors.white54, fontSize: 12);
+    const numberStyle = TextStyle(fontSize: 34, fontWeight: FontWeight.bold);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            RichText(
-              text: TextSpan(
-                style: Theme.of(context).textTheme.bodyMedium,
-                children: [
-                  const TextSpan(
-                    text: 'Selected: ',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                  TextSpan(
-                    text: selectedName,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
+            const Text('Elapsed time', style: muted),
             const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
-                    blurRadius: 18,
-                    spreadRadius: 1,
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(two(hours), style: numberStyle),
+                      const SizedBox(height: 4),
+                      const Text('hours', style: muted),
+                    ],
                   ),
-                ],
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: canStart ? _startSelectedProgram : null,
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: _startingProgram
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Start'),
                 ),
-              ),
+                const Text(':', style: muted),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(two(minutes), style: numberStyle),
+                      const SizedBox(height: 4),
+                      const Text('min', style: muted),
+                    ],
+                  ),
+                ),
+                const Text(':', style: muted),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(two(seconds), style: numberStyle),
+                      const SizedBox(height: 4),
+                      const Text('sec', style: muted),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1284,112 +1063,91 @@ class _TrainingScreenState extends State<TrainingScreen>
     );
   }
 
-  String _formatProgramDuration(ExerciseProgram program) {
-    final exercises = program.programExercises.toList();
-    int totalSeconds = 0;
-    for (final item in exercises) {
-      final sets = item.sets;
-      final duration = item.duration ?? 0;
-      final rest = item.restDuration;
-      totalSeconds += duration * sets;
-      if (rest > 0 && sets > 1) {
-        totalSeconds += rest * (sets - 1);
-      }
+  void _syncElapsedTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+    final completed = _completedProgram;
+    final startIso =
+        _parseDateInput(_startDateController.text) ?? completed?.startDate;
+    if (startIso == null || startIso.isEmpty) {
+      setState(() => _elapsed = Duration.zero);
+      return;
+    }
+    final start = DateTime.tryParse(startIso);
+    if (start == null) {
+      setState(() => _elapsed = Duration.zero);
+      return;
     }
 
-    final totalMinutes = (totalSeconds / 60).round();
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    if (hours <= 0) return '${minutes} m';
-    if (minutes == 0) return '${hours} h';
-    return '${hours} h ${minutes} m';
-  }
+    final endIso =
+        _endDateController.text.trim().isNotEmpty
+            ? _parseDateInput(_endDateController.text)
+            : completed?.endDate;
+    final end = endIso == null || endIso.isEmpty
+        ? null
+        : DateTime.tryParse(endIso);
 
-  void _triggerProgramShake(int programId) {
-    setState(() {
-      _shakingProgramId = programId;
-    });
-    _shakeController.forward(from: 0);
-  }
+    if (end != null) {
+      final diff = end.toUtc().difference(start.toUtc());
+      setState(() => _elapsed = diff.isNegative ? Duration.zero : diff);
+      return;
+    }
 
-  void _showSubscriptionRequiredToast(
-    BuildContext context,
-    String? subscriptionName,
-  ) {
-    final name = subscriptionName?.isNotEmpty == true
-        ? subscriptionName
-        : 'this plan';
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    final topInset = MediaQuery.of(context).padding.top;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Available only with a $name subscription.'),
-        duration: const Duration(seconds: 4),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.fromLTRB(16, 16 + topInset, 16, 0),
-        action: SnackBarAction(
-          label: 'Subscribe',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const UserSubscriptionsScreen(),
-            ),
-          ),
-        ),
-      ),
-    );
+    void tick() {
+      if (!mounted) return;
+      final now = DateTime.now().toUtc();
+      final diff = now.difference(start.toUtc());
+      setState(() => _elapsed = diff.isNegative ? Duration.zero : diff);
+    }
+
+    tick();
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
   }
 
   Widget _programMetaEditor() {
-    final endDateLabel = _completedProgram?.endDate == null
-        ? 'End date (optional)'
-        : 'End date';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _programNameController,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          decoration: const InputDecoration(
+            hintText: 'Workout name',
+            border: InputBorder.none,
+          ),
+          onChanged: (_) => _scheduleProgramMetaSave(),
+        ),
+        const SizedBox(height: 8),
+        Row(
           children: [
-            const Text(
-              'Edit Program',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _programNameController,
-              decoration: const InputDecoration(labelText: 'Program name'),
-            ),
-            TextField(
-              controller: _startDateController,
-              decoration: const InputDecoration(
-                labelText: 'Start date',
-                hintText: 'YYYY-MM-DDTHH:MM:SSZ',
+            Expanded(
+              child: _buildDateTimeField(
+                label: 'Start date',
+                controller: _startDateController,
+                onTap: () => _pickDateTime(_startDateController),
               ),
             ),
-            TextField(
-              controller: _endDateController,
-              decoration: InputDecoration(
-                labelText: endDateLabel,
-                hintText: 'YYYY-MM-DDTHH:MM:SSZ',
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _savingProgram ? null : _saveProgramMeta,
-                child: _savingProgram
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save Changes'),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDateTimeField(
+                label: 'End date',
+                controller: _endDateController,
+                onTap: () => _pickDateTime(_endDateController, allowEmpty: true),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 12),
+        _buildElapsedSection(),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _showAddExerciseDialog,
+            child: const Text('Add exercise'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1494,33 +1252,6 @@ class _TrainingScreenState extends State<TrainingScreen>
     return parts.join(', ');
   }
 
-  bool _hasSubscriptionAccess(ExerciseProgram program) {
-    final requiredSubscription =
-        program.subscription.isNotEmpty ? program.subscription.first : null;
-    if (requiredSubscription == null) return true;
-    final userData = _userData;
-    if (userData == null) return false;
-
-    final nowUtc = DateTime.now().toUtc();
-    for (final sub in _userSubscriptions) {
-      if (sub.userId != userData.userId || sub.pendingDelete) continue;
-      final linked = sub.subscription.value;
-      if (linked == null || linked.id != requiredSubscription.id) continue;
-      if (_isSubscriptionActive(sub, nowUtc)) return true;
-    }
-    return false;
-  }
-
-  bool _isSubscriptionActive(UserSubscription sub, DateTime nowUtc) {
-    final start = DateTime.tryParse(sub.startDate);
-    final end = DateTime.tryParse(sub.endDate);
-    if (start == null || end == null) return false;
-    final startUtc = start.toUtc();
-    final endUtc = end.toUtc();
-    if (nowUtc.isBefore(startUtc)) return false;
-    if (nowUtc.isAfter(endUtc)) return false;
-    return true;
-  }
 
   Future<ExerciseProgram?> _getLocalProgramById(
     Dependencies deps,
@@ -1608,8 +1339,9 @@ class _TrainingScreenState extends State<TrainingScreen>
   Future<void> _saveInlineEdit(
     UserCompletedExercise item,
     _ExerciseEditors editors,
-    bool isTimed,
-  ) async {
+    bool isTimed, {
+    bool showFeedback = true,
+  }) async {
     final sets = int.tryParse(editors.sets.text) ?? item.sets;
     final rest = int.tryParse(editors.rest.text) ?? item.restDuration;
     final weight = int.tryParse(editors.weight.text) ?? item.weight;
@@ -1634,25 +1366,43 @@ class _TrainingScreenState extends State<TrainingScreen>
       await repo.update(item.id, payload, triggerSync: false);
       await programRepo.refreshLocalLinksForProgram(item.completedProgramId);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Exercise updated')));
+      if (showFeedback) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Exercise updated')));
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+      if (showFeedback) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+      }
     }
+  }
+
+  void _scheduleInlineSave(
+    UserCompletedExercise item,
+    _ExerciseEditors editors,
+    bool isTimed,
+  ) {
+    _inlineSaveTimers[item.id]?.cancel();
+    _inlineSaveTimers[item.id] = Timer(
+      const Duration(milliseconds: 400),
+      () => _saveInlineEdit(item, editors, isTimed, showFeedback: false),
+    );
   }
 
   Widget _compactNumberField({
     required TextEditingController controller,
     required String label,
+    VoidCallback? onChanged,
   }) {
     return Expanded(
       child: TextField(
         controller: controller,
         keyboardType: TextInputType.number,
+        onChanged: (_) => onChanged?.call(),
         decoration: InputDecoration(
           isDense: true,
           labelText: label,

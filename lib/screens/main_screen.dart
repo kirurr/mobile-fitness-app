@@ -14,9 +14,9 @@ import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:mobile_fitness_app/user_subscription/model.dart';
 import 'package:mobile_fitness_app/widgets/program_card.dart';
 import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
-import 'package:mobile_fitness_app/screens/programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
+import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/screens/user_completed_programs_screen.dart';
 import 'package:mobile_fitness_app/screens/planned_programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_profile_screen.dart';
@@ -31,7 +31,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen>
     with RouteAware, TickerProviderStateMixin {
   final AuthService _authService = AuthService();
-  bool _isSigningOut = false;
   bool _promptedUserData = false;
   bool _checkingUserData = true;
   bool _routeSubscribed = false;
@@ -115,22 +114,6 @@ class _MainScreenState extends State<MainScreen>
     }
   }
 
-  Future<void> _signOut() async {
-    setState(() {
-      _isSigningOut = true;
-    });
-
-    await _authService.signout();
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const SignInScreen()),
-      (_) => false,
-    );
-  }
 
   Future<void> _refreshUserData({bool force = false}) async {
     try {
@@ -292,7 +275,7 @@ class _MainScreenState extends State<MainScreen>
           child: FloatingActionButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const TrainingScreen(),
+                builder: (_) => const TrainingStartScreen(),
               ),
             ),
             shape: const CircleBorder(),
@@ -633,7 +616,7 @@ class _MainScreenState extends State<MainScreen>
                       child: ElevatedButton.icon(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const TrainingScreen(),
+                            builder: (_) => const TrainingStartScreen(),
                           ),
                         ),
                         icon: const Icon(Icons.play_arrow_rounded),
@@ -818,7 +801,7 @@ class _MainScreenState extends State<MainScreen>
     return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => TrainingScreen(
+          builder: (_) => TrainingStartScreen(
             initialProgramId: item.programId,
           ),
         ),
@@ -1050,7 +1033,7 @@ class _MainScreenState extends State<MainScreen>
         if (hasAccess) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => TrainingScreen(initialProgramId: program.id),
+              builder: (_) => TrainingStartScreen(initialProgramId: program.id),
             ),
           );
           return;
@@ -1341,50 +1324,6 @@ class _MainScreenState extends State<MainScreen>
     String two(int v) => v.toString().padLeft(2, '0');
     return '${date.year}-${two(date.month)}-${two(date.day)} '
         '${two(date.hour)}:${two(date.minute)}';
-  }
-
-  Widget _buildSection<T>({
-    required String title,
-    required Stream<List<T>> stream,
-    required Widget Function(BuildContext context, T item) itemBuilder,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          StreamBuilder<List<T>>(
-            stream: stream,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return Text('Ошибка: ${snapshot.error}');
-              }
-
-              final items = snapshot.data ?? [];
-              if (items.isEmpty) {
-                return const Text('Пока пусто');
-              }
-
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: items.length,
-                itemBuilder: (context, index) => itemBuilder(context, items[index]),
-              );
-            },
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildBottomNavItem(

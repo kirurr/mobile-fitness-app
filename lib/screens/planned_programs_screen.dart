@@ -3,7 +3,7 @@ import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/planned_exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/plan_program_screen.dart';
-import 'package:mobile_fitness_app/screens/training_screen.dart';
+import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 
 class PlannedProgramsScreen extends StatelessWidget {
   const PlannedProgramsScreen({super.key});
@@ -85,7 +85,7 @@ class PlannedProgramsScreen extends StatelessWidget {
                                 child: OutlinedButton(
                                   onPressed: () => Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => TrainingScreen(
+                                      builder: (_) => TrainingStartScreen(
                                         initialProgramId: item.programId,
                                       ),
                                     ),

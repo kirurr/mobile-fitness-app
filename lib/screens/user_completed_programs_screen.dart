@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
+import 'package:mobile_fitness_app/screens/training_start_screen.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
 
 class UserCompletedProgramsScreen extends StatelessWidget {
@@ -86,7 +87,7 @@ class UserCompletedProgramsScreen extends StatelessWidget {
                                   child: OutlinedButton(
                                     onPressed: () => Navigator.of(context).push(
                                       MaterialPageRoute(
-                                        builder: (_) => TrainingScreen(
+                                        builder: (_) => TrainingStartScreen(
                                           initialProgramId: item.programId,
                                         ),
                                       ),
