@@ -12,6 +12,7 @@ import 'package:mobile_fitness_app/subscription/model.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
 import 'package:mobile_fitness_app/user_subscription/model.dart';
+import 'package:mobile_fitness_app/widgets/program_card.dart';
 import 'package:mobile_fitness_app/screens/user_data_form_screen.dart';
 import 'package:mobile_fitness_app/screens/programs_screen.dart';
 import 'package:mobile_fitness_app/screens/user_subscriptions_screen.dart';
@@ -223,6 +224,7 @@ class _MainScreenState extends State<MainScreen>
         child: Column(
           children: [
             const SizedBox(height: 12),
+            _buildActiveWorkoutBanner(context),
             _buildFastStartCard(context),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -361,6 +363,91 @@ class _MainScreenState extends State<MainScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildActiveWorkoutBanner(BuildContext context) {
+    final deps = DependencyScope.of(context);
+    final completedRepo = deps.userCompletedProgramRepository;
+    final programRepo = deps.exerciseProgramRepository;
+
+    return StreamBuilder<List<UserCompletedProgram>>(
+      stream: completedRepo.watchCompletedPrograms(),
+      builder: (context, completedSnapshot) {
+        final completed = completedSnapshot.data ?? const <UserCompletedProgram>[];
+        final active = completed
+            .where((item) => item.endDate == null || item.endDate!.isEmpty)
+            .toList();
+        if (active.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        active.sort((a, b) {
+          final aDate = _parseDate(a.startDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = _parseDate(b.startDate) ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
+        });
+
+        final current = active.first;
+        final startText = _formatDateTimeShort(current.startDate);
+
+        return StreamBuilder<List<ExerciseProgram>>(
+          stream: programRepo.watchPrograms(),
+          builder: (context, programSnapshot) {
+            final programs = programSnapshot.data ?? const <ExerciseProgram>[];
+            final programById = {
+              for (final program in programs) program.id: program,
+            };
+            final name =
+                current.program.value?.name ??
+                programById[current.programId]?.name ??
+                'Workout';
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C271E),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Workout in progress — $name',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Started: $startText',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrainingScreen(
+                              completedProgramId: current.id,
+                            ),
+                          ),
+                        ),
+                        child: const Text('Continue'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -911,16 +998,24 @@ class _MainScreenState extends State<MainScreen>
                   }
 
                   return Column(
-                    children:
-                        filtered
-                            .map(
-                              (program) => _buildProgramCard(
-                                context,
-                                program,
-                                userSubscriptions,
-                              ),
-                            )
-                            .toList(),
+                    children: filtered.map((program) {
+                      final subscription =
+                          program.subscription.isNotEmpty
+                              ? program.subscription.first
+                              : null;
+                      final difficulty =
+                          program.difficultyLevel.isNotEmpty
+                              ? program.difficultyLevel.first
+                              : null;
+                      return _buildProgramCard(
+                        context,
+                        program,
+                        userSubscriptions,
+                        subscriptionName: subscription?.name ?? 'Free',
+                        isFree: subscription == null,
+                        difficultyName: difficulty?.name ?? '-',
+                      );
+                    }).toList(),
                   );
                 },
               );
@@ -935,18 +1030,22 @@ class _MainScreenState extends State<MainScreen>
     BuildContext context,
     ExerciseProgram program,
     List<UserSubscription> userSubscriptions,
-  ) {
-    final colorPrimary = Theme.of(context).colorScheme.primary;
-    final subscription =
-        program.subscription.isNotEmpty ? program.subscription.first : null;
-    final difficulty =
-        program.difficultyLevel.isNotEmpty ? program.difficultyLevel.first : null;
+    {required String subscriptionName,
+    required bool isFree,
+    required String difficultyName}) {
     final durationText = _formatProgramDuration(program);
     final exerciseCount = program.programExercises.length;
     final hasAccess = _hasProgramAccess(program, userSubscriptions);
     final shouldShake = _shakingProgramId == program.id;
 
-    final card = InkWell(
+    final card = ProgramCard(
+      title: program.name,
+      description: program.description,
+      durationText: durationText,
+      exerciseCount: exerciseCount,
+      subscriptionName: subscriptionName,
+      isFree: isFree,
+      difficultyName: difficultyName,
       onTap: () {
         if (hasAccess) {
           Navigator.of(context).push(
@@ -958,108 +1057,8 @@ class _MainScreenState extends State<MainScreen>
         }
 
         _triggerProgramShake(program.id);
-        _showSubscriptionRequiredToast(context, subscription?.name);
+        _showSubscriptionRequiredToast(context, subscriptionName);
       },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    program.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color:
-                        subscription == null
-                            ? Colors.white10
-                            : const Color(0xFF2C1F5D),
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        subscription == null
-                            ? null
-                            : Border.all(color: const Color(0xFF805FF4)),
-                  ),
-                  child: Text(
-                    subscription?.name ?? 'Free',
-                    style: TextStyle(
-                      color:
-                          subscription == null
-                              ? Colors.white70
-                              : const Color(0xFF805FF4),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              program.description,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildProgramStat(
-                  icon: Icons.schedule,
-                  value: durationText,
-                  label: 'Duration',
-                ),
-                const SizedBox(width: 16),
-                _buildProgramStat(
-                  icon: Icons.fitness_center,
-                  value: '$exerciseCount',
-                  label: 'Exercises',
-                ),
-                const Spacer(),
-                if (difficulty != null)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: colorPrimary.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.bolt, size: 14, color: colorPrimary),
-                        const SizedBox(width: 4),
-                        Text(
-                          difficulty.name,
-                          style: const TextStyle(
-                            color: Color(0xFF13EC49),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
 
     if (!shouldShake) {
@@ -1078,28 +1077,6 @@ class _MainScreenState extends State<MainScreen>
     );
   }
 
-  Widget _buildProgramStat({
-    required IconData icon,
-    required String value,
-    required String label,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18, color: Colors.white70),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white54, fontSize: 11),
-        ),
-      ],
-    );
-  }
 
   bool _hasProgramAccess(
     ExerciseProgram program,
@@ -1356,6 +1333,14 @@ class _MainScreenState extends State<MainScreen>
     if (date == null) return '-';
     String two(int v) => v.toString().padLeft(2, '0');
     return '${date.year}-${two(date.month)}-${two(date.day)}';
+  }
+
+  String _formatDateTimeShort(String? value) {
+    final date = _parseDate(value);
+    if (date == null) return '-';
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${date.year}-${two(date.month)}-${two(date.day)} '
+        '${two(date.hour)}:${two(date.minute)}';
   }
 
   Widget _buildSection<T>({

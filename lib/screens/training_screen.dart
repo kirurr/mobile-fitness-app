@@ -11,6 +11,7 @@ import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
 import 'package:mobile_fitness_app/user_completed_program/dto.dart';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
 import 'package:mobile_fitness_app/user_data/model.dart';
+import 'package:mobile_fitness_app/widgets/program_card.dart';
 
 class TrainingScreen extends StatefulWidget {
   final int? completedProgramId;
@@ -22,7 +23,8 @@ class TrainingScreen extends StatefulWidget {
   State<TrainingScreen> createState() => _TrainingScreenState();
 }
 
-class _TrainingScreenState extends State<TrainingScreen> {
+class _TrainingScreenState extends State<TrainingScreen>
+    with TickerProviderStateMixin {
   ExerciseProgram? _program;
   UserCompletedProgram? _completedProgram;
   UserData? _userData;
@@ -61,10 +63,31 @@ class _TrainingScreenState extends State<TrainingScreen> {
   final TextEditingController _programNameController = TextEditingController();
   final TextEditingController _startDateController = TextEditingController();
   final TextEditingController _endDateController = TextEditingController();
+  late final AnimationController _shakeController;
+  late final Animation<double> _shakeAnimation;
+  int? _shakingProgramId;
 
   @override
   void initState() {
     super.initState();
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    );
+    _shakeAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 6, end: -4), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -4, end: 4), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 4, end: 0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
+    _shakeController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() {
+          _shakingProgramId = null;
+        });
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
@@ -81,6 +104,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     for (final entry in _editControllers.values) {
       entry.dispose();
     }
+    _shakeController.dispose();
     super.dispose();
   }
 
@@ -616,7 +640,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   Widget build(BuildContext context) {
     final completedProgram = _completedProgram;
     return Scaffold(
-      appBar: AppBar(title: const Text('Training')),
+      appBar: AppBar(title: const Text('Start workout')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -1033,163 +1057,284 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   Widget _programSelection() {
-    if (_availablePrograms.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('No programs available. Please sync or create one.'),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 220,
-              child: ElevatedButton(
-                onPressed: _startingCustomProgram ? null : _startCustomProgram,
-                child: _startingCustomProgram
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Start Custom Workout'),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     final selected = _selectedProgram;
-    final hasExercises = selected?.programExercises.isNotEmpty ?? false;
-    final requiredSubscription =
-        selected?.subscription.isNotEmpty == true
-            ? selected!.subscription.first
-            : null;
     final hasSubscriptionAccess =
         selected != null ? _hasSubscriptionAccess(selected) : false;
+    final selectedName = selected?.name ?? '-';
+    final hasSelectedExercises = selected?.programExercises.isNotEmpty ?? false;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Choose a program',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<ExerciseProgram>(
-            decoration: const InputDecoration(labelText: 'Program'),
-            initialValue: _selectedProgram,
-            items: _availablePrograms
-                .map(
-                  (program) => DropdownMenuItem<ExerciseProgram>(
-                    value: program,
-                    child: Text(program.name),
-                  ),
-                )
-                .toList(),
-            onChanged: (program) {
-              setState(() => _selectedProgram = program);
-            },
-          ),
-          if (requiredSubscription != null && !hasSubscriptionAccess) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Requires subscription: ${requiredSubscription.name}',
-              style: const TextStyle(color: Colors.red),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const UserSubscriptionsScreen(),
-                    ),
-                  );
-                },
-                child: Text(
-                  'Оформить подписку ${requiredSubscription.name}',
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFreeWorkoutCard(context),
+              const SizedBox(height: 16),
+              if (_availablePrograms.isEmpty) ...[
+                const Text('No programs available. Please sync or create one.'),
+              ] else ...[
+                const Text(
+                  'Choose a program',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 12),
+                Column(
+                  children: _availablePrograms.map((program) {
+                    final subscription =
+                        program.subscription.isNotEmpty
+                            ? program.subscription.first
+                            : null;
+                    final difficulty =
+                        program.difficultyLevel.isNotEmpty
+                            ? program.difficultyLevel.first
+                            : null;
+                    final durationText = _formatProgramDuration(program);
+                    final exerciseCount = program.programExercises.length;
+                    final hasAccess = _hasSubscriptionAccess(program);
+                    final shouldShake = _shakingProgramId == program.id;
+                    final card = ProgramCard(
+                      title: program.name,
+                      description: program.description,
+                      durationText: durationText,
+                      exerciseCount: exerciseCount,
+                      subscriptionName: subscription?.name ?? 'Free',
+                      isFree: subscription == null,
+                      difficultyName: difficulty?.name ?? '-',
+                      isSelected: selected?.id == program.id,
+                      onTap: () {
+                        if (!hasAccess) {
+                          _triggerProgramShake(program.id);
+                          _showSubscriptionRequiredToast(
+                            context,
+                            subscription?.name,
+                          );
+                          return;
+                        }
+                        setState(() => _selectedProgram = program);
+                      },
+                    );
+
+                    if (!shouldShake) return card;
+                    return AnimatedBuilder(
+                      animation: _shakeController,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(_shakeAnimation.value, 0),
+                          child: child,
+                        );
+                      },
+                      child: card,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                if (selected != null && !hasSelectedExercises)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Selected program has no exercises.',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _buildProgramSelectionBar(
+            context,
+            selectedName: selectedName,
+            canStart:
+                selected != null &&
+                hasSelectedExercises &&
+                hasSubscriptionAccess &&
+                !_startingProgram,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFreeWorkoutCard(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: _startingCustomProgram ? null : _startCustomProgram,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C271E),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primary,
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.6),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.add, color: Colors.black),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Custom workout',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Start without a program and build your own.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
               ),
             ),
+            if (_startingCustomProgram)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
           ],
-          const SizedBox(height: 12),
-          _selectedProgram == null
-              ? const Text('Select a program to start.')
-              : _programPreview(_selectedProgram!),
-          const SizedBox(height: 16),
-          if (selected != null && !hasExercises)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Selected program has no exercises.',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed:
-                  _startingProgram || !hasExercises || !hasSubscriptionAccess
-                      ? null
-                      : _startSelectedProgram,
-              child: _startingProgram
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Start Workout'),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _startingCustomProgram ? null : _startCustomProgram,
-              child: _startingCustomProgram
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Start Custom Workout'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _programPreview(ExerciseProgram program) {
-    final goals = program.fitnessGoals
-        .map((goal) => goal.name)
-        .toList(growable: false);
-    final goalText = goals.isNotEmpty ? goals.join(', ') : '-';
-    final difficulty =
-        program.difficultyLevel.isNotEmpty
-            ? program.difficultyLevel.first.name
-            : '-';
-    final exerciseCount = program.programExercises.length;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+  Widget _buildProgramSelectionBar(
+    BuildContext context, {
+    required String selectedName,
+    required bool canStart,
+  }) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: const Border(
+            top: BorderSide(color: Colors.white12),
+          ),
+        ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              program.name,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodyMedium,
+                children: [
+                  const TextSpan(
+                    text: 'Selected: ',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  TextSpan(
+                    text: selectedName,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(program.description),
-            const SizedBox(height: 8),
-            Text('Difficulty: $difficulty'),
-            Text('Goal: $goalText'),
-            Text('Exercises: $exerciseCount'),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: canStart ? _startSelectedProgram : null,
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: _startingProgram
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Start'),
+                ),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  String _formatProgramDuration(ExerciseProgram program) {
+    final exercises = program.programExercises.toList();
+    int totalSeconds = 0;
+    for (final item in exercises) {
+      final sets = item.sets;
+      final duration = item.duration ?? 0;
+      final rest = item.restDuration;
+      totalSeconds += duration * sets;
+      if (rest > 0 && sets > 1) {
+        totalSeconds += rest * (sets - 1);
+      }
+    }
+
+    final totalMinutes = (totalSeconds / 60).round();
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours <= 0) return '${minutes} m';
+    if (minutes == 0) return '${hours} h';
+    return '${hours} h ${minutes} m';
+  }
+
+  void _triggerProgramShake(int programId) {
+    setState(() {
+      _shakingProgramId = programId;
+    });
+    _shakeController.forward(from: 0);
+  }
+
+  void _showSubscriptionRequiredToast(
+    BuildContext context,
+    String? subscriptionName,
+  ) {
+    final name = subscriptionName?.isNotEmpty == true
+        ? subscriptionName
+        : 'this plan';
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    final topInset = MediaQuery.of(context).padding.top;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Available only with a $name subscription.'),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(16, 16 + topInset, 16, 0),
+        action: SnackBarAction(
+          label: 'Subscribe',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const UserSubscriptionsScreen(),
+            ),
+          ),
         ),
       ),
     );
