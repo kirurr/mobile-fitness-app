@@ -1,6 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/auth/model.dart';
 import 'package:mobile_fitness_app/app/dio.dart';
+import 'package:mobile_fitness_app/app/navigation.dart';
 import 'package:mobile_fitness_app/app/storage.dart';
+import 'package:mobile_fitness_app/screens/sign_in_screen.dart';
 
 class AuthService {
   final ApiClient _apiClient = ApiClient.instance;
@@ -47,6 +50,13 @@ class AuthService {
     await _storage.deleteUserId();
     await _storage.deleteEmail();
     await _storage.deletePassword();
+    final navigator = appNavigatorKey.currentState;
+    if (navigator != null) {
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (_) => false,
+      );
+    }
   }
 
   Future<bool> isLoggedIn() async {

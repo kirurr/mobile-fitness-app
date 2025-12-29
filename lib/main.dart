@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/app/dependencies.dart';
 import 'package:mobile_fitness_app/app/dependency_scope.dart';
+import 'package:mobile_fitness_app/app/navigation.dart';
 import 'package:mobile_fitness_app/app/route_observer.dart';
 import 'auth/service.dart';
 import 'screens/app_shell.dart';
@@ -39,6 +40,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: title,
+      navigatorKey: appNavigatorKey,
       navigatorObservers: [appRouteObserver],
       theme: ThemeData(
         fontFamily: 'Lexend',

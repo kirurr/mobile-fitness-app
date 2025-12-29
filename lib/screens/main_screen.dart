@@ -945,7 +945,7 @@ class _MainScreenState extends State<MainScreen>
         ? subscriptionName
         : 'this plan';
     final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
+    messenger.clearSnackBars();
     final topInset = MediaQuery.of(context).padding.top;
     messenger.showSnackBar(
       SnackBar(
@@ -955,11 +955,14 @@ class _MainScreenState extends State<MainScreen>
         margin: EdgeInsets.fromLTRB(16, 16 + topInset, 16, 0),
         action: SnackBarAction(
           label: 'Subscribe',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const UserSubscriptionsScreen(),
-            ),
-          ),
+          onPressed: () {
+            messenger.hideCurrentSnackBar();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const UserSubscriptionsScreen(),
+              ),
+            );
+          },
         ),
       ),
     );

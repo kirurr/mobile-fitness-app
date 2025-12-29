@@ -16,13 +16,13 @@ class UserSubscriptionsScreen extends StatefulWidget {
 class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
   static const List<int> _monthOptions = [1, 3, 6, 12];
 
-  int? _selectedSubscriptionId;
-  int _selectedMonths = _monthOptions.first;
   bool _submitting = false;
   List<Subscription> _subscriptionsCache = [];
   int? _userId;
   List<Subscription> _initialSubscriptions = [];
   List<UserSubscription> _initialUserSubscriptions = [];
+  bool _initialLoaded = false;
+  bool _userIdLoaded = false;
 
   @override
   void initState() {
@@ -37,6 +37,7 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
     if (!mounted) return;
     setState(() {
       _userId = userId;
+      _userIdLoaded = true;
     });
   }
 
@@ -50,6 +51,7 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
       _initialSubscriptions = subscriptions;
       _initialUserSubscriptions = userSubscriptions;
       _subscriptionsCache = subscriptions;
+      _initialLoaded = true;
     });
   }
 
@@ -82,39 +84,21 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
     return true;
   }
 
-  List<UserSubscription> _activeSubscriptionsForUser(
-    List<UserSubscription> items,
-    int? userId,
-  ) {
-    if (userId == null) return const [];
-    final nowUtc = DateTime.now().toUtc();
-    return items
-        .where(
-          (sub) =>
-              sub.userId == userId &&
-              !sub.pendingDelete &&
-              _isSubscriptionActive(sub, nowUtc),
-        )
-        .toList();
+  String _formatDateTime(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    final local = parsed.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
   }
 
   Future<void> _handleCreate(
-    List<Subscription> subscriptions,
+    Subscription subscription,
+    int months,
     List<UserSubscription> userSubscriptions,
   ) async {
     if (_submitting) return;
-
-    final subscription = subscriptions.firstWhere(
-      (sub) => sub.id == _selectedSubscriptionId,
-      orElse: () => Subscription(id: -1, name: '', monthlyCost: 0),
-    );
-
-    if (subscription.id == -1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a subscription')),
-      );
-      return;
-    }
 
     final userId = _userId;
     if (userId == null) {
@@ -134,15 +118,11 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
           _isSubscriptionActive(sub, nowUtc);
     });
     if (alreadyActive) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Subscription already active.')),
-      );
       return;
     }
 
     final startDate = DateTime.now();
-    final endDate = _addMonths(startDate, _selectedMonths);
+    final endDate = _addMonths(startDate, months);
 
     final subPayload = UserSubscriptionPayloadDTO(
       userId: userId,
@@ -153,7 +133,7 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
 
     final paymentPayload = UserPaymentPayloadDTO(
       userId: userId,
-      amount: subscription.monthlyCost * _selectedMonths,
+      amount: subscription.monthlyCost * months,
     );
 
     if (!mounted) return;
@@ -168,7 +148,7 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Created ${subscription.name} for $_selectedMonths month(s) and logged payment.',
+            'Created ${subscription.name} for $months month(s)',
           ),
         ),
       );
@@ -184,8 +164,116 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
     }
   }
 
+  Future<void> _showPurchaseSheet(
+    Subscription subscription,
+    List<UserSubscription> userSubscriptions,
+  ) async {
+    int selectedMonths = _monthOptions.first;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 12,
+                bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Purchase ${subscription.name}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Choose duration',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _monthOptions
+                        .map(
+                          (months) => ChoiceChip(
+                            label: Text(
+                              '$months month${months > 1 ? 's' : ''}',
+                            ),
+                            selected: selectedMonths == months,
+                            onSelected: (_) {
+                              setSheetState(() => selectedMonths = months);
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _submitting
+                          ? null
+                          : () async {
+                              await _handleCreate(
+                                subscription,
+                                selectedMonths,
+                                userSubscriptions,
+                              );
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop();
+                            },
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Submit'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  UserSubscription? _activeSubscriptionFor(
+    List<UserSubscription> items,
+    int? userId,
+    int subscriptionId,
+  ) {
+    if (userId == null) return null;
+    final nowUtc = DateTime.now().toUtc();
+    for (final sub in items) {
+      if (sub.userId != userId || sub.pendingDelete) continue;
+      final linkedId = sub.subscription.value?.id;
+      if (linkedId != subscriptionId) continue;
+      if (_isSubscriptionActive(sub, nowUtc)) return sub;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!_initialLoaded || !_userIdLoaded) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final repo = DependencyScope.of(context).subscriptionRepository;
     final userSubscriptionRepo =
         DependencyScope.of(context).userSubscriptionRepository;
@@ -203,10 +291,6 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
                   }
 
                   final userSubscriptions = userSnapshot.data ?? const [];
-                  final activeSubscriptions = _activeSubscriptionsForUser(
-                    userSubscriptions,
-                    _userId,
-                  );
 
                   return StreamBuilder<List<Subscription>>(
                     stream: repo.watchSubscriptions(),
@@ -222,73 +306,13 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
                         _subscriptionsCache = subscriptions;
                       }
 
-                      final activeIds = activeSubscriptions
-                          .map((sub) => sub.subscription.value?.id)
-                          .whereType<int>()
-                          .toSet();
-                      final selectedIsActive =
-                          _selectedSubscriptionId != null &&
-                          activeIds.contains(_selectedSubscriptionId);
-
                       return SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Active subscriptions',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            if (activeSubscriptions.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                child: Text('No active subscriptions.'),
-                              )
-                            else
-                              Column(
-                                children: activeSubscriptions
-                                    .map(
-                                      (sub) => Card(
-                                        child: ListTile(
-                                          title: Text(
-                                            sub.subscription.value?.name ?? '-',
-                                          ),
-                                          subtitle: Text(
-                                            'Start: ${sub.startDate}  End: ${sub.endDate}',
-                                          ),
-                                          trailing: IconButton(
-                                            icon: const Icon(Icons.delete),
-                                            onPressed:
-                                                _submitting
-                                                    ? null
-                                                    : () async {
-                                                      setState(
-                                                        () => _submitting = true,
-                                                      );
-                                                      try {
-                                                        await userSubscriptionRepo
-                                                            .delete(sub.id);
-                                                      } finally {
-                                                        if (mounted) {
-                                                          setState(
-                                                            () => _submitting = false,
-                                                          );
-                                                        }
-                                                      }
-                                                    },
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Choose a subscription and duration to create a user subscription.',
+                              'Subscriptions',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -304,99 +328,113 @@ class _UserSubscriptionsScreenState extends State<UserSubscriptionsScreen> {
                               )
                             else
                               Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: subscriptions
                                     .map(
                                       (sub) {
-                                        final isActive = activeIds.contains(
+                                        final activeSub = _activeSubscriptionFor(
+                                          userSubscriptions,
+                                          _userId,
                                           sub.id,
                                         );
+                                        final priceText =
+                                            '\$${sub.monthlyCost} / month';
                                         return Card(
-                                          child: ListTile(
-                                            leading: Icon(
-                                              _selectedSubscriptionId == sub.id
-                                                  ? Icons.radio_button_checked
-                                                  : Icons.radio_button_unchecked,
-                                            ),
-                                            title: Text(sub.name),
-                                            subtitle: Text(
-                                              isActive
-                                                  ? 'Active'
-                                                  : 'Monthly cost: ${sub.monthlyCost}',
-                                            ),
-                                            onTap:
-                                                isActive
-                                                    ? null
-                                                    : () => setState(
-                                                      () =>
-                                                          _selectedSubscriptionId =
-                                                              sub.id,
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  sub.name,
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  priceText,
+                                                  style: const TextStyle(
+                                                    fontSize: 26,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                if (activeSub != null) ...[
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: OutlinedButton(
+                                                      onPressed: _submitting
+                                                          ? null
+                                                          : () async {
+                                                              setState(
+                                                                () =>
+                                                                    _submitting =
+                                                                        true,
+                                                              );
+                                                              try {
+                                                                await userSubscriptionRepo
+                                                                    .delete(
+                                                                      activeSub.id,
+                                                                    );
+                                                              } finally {
+                                                                if (mounted) {
+                                                                  setState(
+                                                                    () =>
+                                                                        _submitting =
+                                                                            false,
+                                                                  );
+                                                                }
+                                                              }
+                                                            },
+                                                      child: const Text(
+                                                        'Cancel subscription',
+                                                      ),
                                                     ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Paid until ${_formatDateTime(activeSub.endDate)}',
+                                                    style: const TextStyle(
+                                                      color: Colors.white70,
+                                                    ),
+                                                  ),
+                                                ] else ...[
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: ElevatedButton(
+                                                      onPressed:
+                                                          _submitting
+                                                              ? null
+                                                              : () =>
+                                                                  _showPurchaseSheet(
+                                                                    sub,
+                                                                    userSubscriptions,
+                                                                  ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Theme.of(context)
+                                                                    .colorScheme
+                                                                    .primary,
+                                                            foregroundColor:
+                                                                Colors.black,
+                                                          ),
+                                                      child: const Text(
+                                                        'Purchase',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
                                           ),
                                         );
                                       },
                                     )
                                     .toList(),
                               ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Duration',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: _monthOptions
-                                  .map(
-                                    (months) => ChoiceChip(
-                                      label: Text(
-                                        '$months month${months > 1 ? 's' : ''}',
-                                      ),
-                                      selected: _selectedMonths == months,
-                                      onSelected: (_) => setState(
-                                        () => _selectedMonths = months,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 24),
-                            if (selectedIsActive)
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 8),
-                                child: Text(
-                                  'Subscription already active.',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed:
-                                    subscriptions.isEmpty ||
-                                            _submitting ||
-                                            selectedIsActive
-                                        ? null
-                                        : () => _handleCreate(
-                                          subscriptions,
-                                          userSubscriptions,
-                                        ),
-                                child:
-                                    _submitting
-                                        ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                        : const Text('Create'),
-                              ),
-                            ),
                           ],
                         ),
                       );

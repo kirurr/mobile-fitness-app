@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'storage.dart';
@@ -18,7 +19,7 @@ class AuthInterceptor extends Interceptor {
   final SecureStorageService _storage = SecureStorageService();
   final AuthService _authService = AuthService();
   final Dio _dioForRetry = Dio(); // Temporary Dio instance for retries
-  bool _isRefreshing = false;
+  Completer<void>? _refreshCompleter;
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
@@ -33,22 +34,24 @@ class AuthInterceptor extends Interceptor {
       }
 
       // Prevent multiple simultaneous refresh attempts
-      if (_isRefreshing) {
-        // Wait until the token refresh is complete
-        while (_isRefreshing) {
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
+      if (_refreshCompleter != null) {
+        await _refreshCompleter!.future;
         // Get the fresh token and update the request headers before retrying
         String? freshToken = await _storage.getToken();
         if (freshToken == null || freshToken.isEmpty) {
           handler.next(err);
           return;
         }
-        err.requestOptions.headers['Authorization'] = 'Bearer $freshToken';
+        final retryHeaders = Map<String, dynamic>.from(
+          err.requestOptions.headers,
+        );
+        retryHeaders['Authorization'] = 'Bearer $freshToken';
 
         // Retry the request with the new token
         try {
-          final options = err.requestOptions;
+          final options = err.requestOptions.copyWith(
+            headers: retryHeaders,
+          );
           var response = await _dioForRetry.fetch(options);
           handler.resolve(response);
           return;
@@ -58,7 +61,7 @@ class AuthInterceptor extends Interceptor {
         }
       }
 
-      _isRefreshing = true;
+      _refreshCompleter = Completer<void>();
 
       try {
         // Get stored credentials
@@ -74,7 +77,6 @@ class AuthInterceptor extends Interceptor {
           if (result.error != null) {
             // If re-auth fails, sign out the user
             await _authService.signout();
-            _isRefreshing = false;
             handler.next(err);
             return;
           }
@@ -85,31 +87,33 @@ class AuthInterceptor extends Interceptor {
           // Update the headers with the new token
           if (newToken == null || newToken.isEmpty) {
             await _authService.signout();
-            _isRefreshing = false;
             handler.next(err);
             return;
           }
-          err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
-
-          var newOptions = err.requestOptions;
-          newOptions.headers['Authorization'] = 'Bearer $newToken';
+          final retryHeaders = Map<String, dynamic>.from(
+            err.requestOptions.headers,
+          );
+          retryHeaders['Authorization'] = 'Bearer $newToken';
+          var newOptions = err.requestOptions.copyWith(
+            headers: retryHeaders,
+          );
           // Retry the original request using the updated token
           var response = await _dioForRetry.fetch(newOptions);
 
-          _isRefreshing = false;
           handler.resolve(response);
         } else {
           // No stored credentials, sign out the user
           await _authService.signout();
-          _isRefreshing = false;
           handler.next(err);
         }
       } catch (e) {
         print('Error during token refresh: $e');
         // If anything goes wrong during re-auth, sign out the user
         await _authService.signout();
-        _isRefreshing = false;
         handler.next(err);
+      } finally {
+        _refreshCompleter?.complete();
+        _refreshCompleter = null;
       }
     } else {
       // For non-401 errors, continue as normal

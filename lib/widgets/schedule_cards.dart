@@ -159,7 +159,10 @@ class _ScheduleCard extends StatelessWidget {
                                 Text(
                                   startTime,
                                   style: TextStyle(
-                                    color: colorPrimary,
+                                    color:
+                                        badgeIsToday
+                                            ? Colors.green
+                                            : Colors.white70,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
