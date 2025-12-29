@@ -284,11 +284,25 @@ class _TrainingScreenState extends State<TrainingScreen> {
         programPayload,
       );
 
+      if (!mounted) return;
+      setState(() {
+        _program = updatedProgram;
+      });
+
+      if (endIso != null) {
+        await _completeProgram(
+          startIso: startIso,
+          endIso: endIso,
+          showFeedback: false,
+        );
+        return;
+      }
+
       final completedPayload = UserCompletedProgramPayloadDTO(
         userId: completedProgram.userId,
         programId: completedProgram.programId,
         startDate: startIso,
-        endDate: endIso,
+        endDate: null,
       );
       final updatedCompleted = await deps.userCompletedProgramRepository.update(
         completedProgram.id,
@@ -298,7 +312,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
       if (!mounted) return;
       setState(() {
-        _program = updatedProgram;
         _completedProgram =
             updatedCompleted ??
             UserCompletedProgram(
@@ -306,7 +319,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               userId: completedProgram.userId,
               programId: completedProgram.programId,
               startDate: startIso,
-              endDate: endIso,
+              endDate: null,
             );
       });
       _syncProgramMetaEditors(
@@ -358,8 +371,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   Future<void> _finishProgram() async {
+    await _completeProgram();
+  }
+
+  Future<void> _completeProgram({
+    String? startIso,
+    String? endIso,
+    bool showFeedback = true,
+  }) async {
     final completedProgram = _completedProgram;
-    if (completedProgram == null) {
+    if (completedProgram == null || _endingProgram) {
       return;
     }
     final deps = DependencyScope.of(context);
@@ -382,12 +403,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
         await _syncProgramExercisesFromCompleted(deps);
       }
 
-      final endIso = DateTime.now().toUtc().toIso8601String();
+      final resolvedStartIso = startIso ?? completedProgram.startDate;
+      final resolvedEndIso = endIso ?? DateTime.now().toUtc().toIso8601String();
       final payload = UserCompletedProgramPayloadDTO(
         userId: completedProgram.userId,
         programId: completedProgram.programId,
-        startDate: completedProgram.startDate,
-        endDate: endIso,
+        startDate: resolvedStartIso,
+        endDate: resolvedEndIso,
       );
 
       await deps.userCompletedProgramRepository.update(
@@ -402,24 +424,28 @@ class _TrainingScreenState extends State<TrainingScreen> {
           id: completedProgram.id,
           userId: completedProgram.userId,
           programId: completedProgram.programId,
-          startDate: completedProgram.startDate,
-          endDate: endIso,
+          startDate: resolvedStartIso,
+          endDate: resolvedEndIso,
         );
       });
       _syncProgramMetaEditors(
         program: _program,
         completedProgram: _completedProgram,
       );
-      _endDateController.text = _formatDateTimeInput(endIso);
+      _endDateController.text = _formatDateTimeInput(resolvedEndIso);
       _syncElapsedTimer();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Workout finished')));
+      if (showFeedback) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Workout finished')));
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to finish workout: $e')));
+      if (showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to finish workout: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {

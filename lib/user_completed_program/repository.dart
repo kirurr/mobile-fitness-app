@@ -155,6 +155,7 @@ class UserCompletedProgramRepository {
     for (final item in pendingDeletes) {
       try {
         await remote.delete(item.id);
+        await local.deleteById(item.id);
       } catch (_) {
         continue;
       }
@@ -176,6 +177,15 @@ class UserCompletedProgramRepository {
         } else {
           await remote.update(item.id, payload);
         }
+        item.synced = true;
+        item.isLocalOnly = false;
+        item.pendingDelete = false;
+        final exercisesOverride = item.completedExercises.toList();
+        await local.upsert(
+          item,
+          completedExercisesOverride: exercisesOverride,
+          forceReplaceExercises: exercisesOverride.isNotEmpty,
+        );
       } catch (_) {
         continue;
       }

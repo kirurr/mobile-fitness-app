@@ -191,6 +191,7 @@ class ExerciseProgramRepository {
     for (final item in pendingDeletes) {
       try {
         await remote.delete(item.id);
+        await local.deleteById(item.id);
       } catch (_) {
         continue;
       }
@@ -201,10 +202,15 @@ class ExerciseProgramRepository {
       if (item.pendingDelete) continue;
       final payload = _buildPayloadFromProgram(item);
       try {
-        final saved = item.isLocalOnly
-            ? await remote.create(payload)
-            : await remote.update(item.id, payload);
-        await local.updateFromProgram(saved, saved.programExercises.toList());
+        if (item.isLocalOnly) {
+          await remote.create(payload);
+        } else {
+          await remote.update(item.id, payload);
+        }
+        item.synced = true;
+        item.isLocalOnly = false;
+        item.pendingDelete = false;
+        await local.updateFromProgram(item, item.programExercises.toList());
       } catch (_) {
         continue;
       }

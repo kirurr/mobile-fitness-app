@@ -104,6 +104,7 @@ class UserSubscriptionRepository {
     for (final item in pendingDeletes) {
       try {
         await remote.delete(item.id);
+        await local.deleteById(item.id);
       } catch (_) {
         continue;
       }
@@ -125,6 +126,10 @@ class UserSubscriptionRepository {
         } else {
           await remote.update(item.id, payload);
         }
+        item.synced = true;
+        item.isLocalOnly = false;
+        item.pendingDelete = false;
+        await local.upsert(item);
       } catch (_) {
         continue;
       }
