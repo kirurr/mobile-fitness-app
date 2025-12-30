@@ -185,8 +185,13 @@ class UserCompletedProgramLocalDataSource {
   Future<void> replaceAll(List<UserCompletedProgram> items) async {
     final incomingIds = items.map((item) => item.id).toSet();
     final existing = await _collection.where().findAll();
+    final existingById = {for (final item in existing) item.id: item};
 
     for (final item in items) {
+      final localItem = existingById[item.id];
+      if (localItem != null && await _isSameProgram(localItem, item)) {
+        continue;
+      }
       await upsert(item, forceReplaceExercises: true);
     }
 
@@ -218,5 +223,43 @@ class UserCompletedProgramLocalDataSource {
     item.completedExercises
       ..clear()
       ..addAll(exercises);
+  }
+
+  Future<bool> _isSameProgram(
+    UserCompletedProgram existing,
+    UserCompletedProgram incoming,
+  ) async {
+    await _loadLinks(existing);
+
+    if (existing.userId != incoming.userId ||
+        existing.programId != incoming.programId ||
+        existing.startDate != incoming.startDate ||
+        existing.endDate != incoming.endDate) {
+      return false;
+    }
+
+    final existingExercises = existing.completedExercises
+        .map(_completedExerciseKey)
+        .toList()
+      ..sort();
+    final incomingExercises = incoming.completedExercises
+        .map(_completedExerciseKey)
+        .toList()
+      ..sort();
+    return _listEquals(existingExercises, incomingExercises);
+  }
+
+  String _completedExerciseKey(UserCompletedExercise item) {
+    return '${item.id}|${item.programExerciseId}|${item.exerciseId}|'
+        '${item.sets}|${item.reps}|${item.duration}|${item.weight}|'
+        '${item.restDuration}';
+  }
+
+  bool _listEquals<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

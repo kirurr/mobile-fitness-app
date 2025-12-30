@@ -77,11 +77,16 @@ class _UserDataFormScreenState extends State<UserDataFormScreen> {
         ..trainingLevel.value = selectedDifficulty;
 
       await repo.saveLocalUserData(data);
+      try {
+        await repo.syncLocalUserData();
+      } catch (_) {
+        // Keep local data even if sync fails.
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Profile saved locally. Sync to upload changes.'),
+            content: Text('Profile saved'),
           ),
         );
         if (Navigator.of(context).canPop()) {

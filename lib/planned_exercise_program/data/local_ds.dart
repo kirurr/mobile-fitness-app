@@ -127,8 +127,13 @@ class PlannedExerciseProgramLocalDataSource {
   Future<void> replaceAll(List<PlannedExerciseProgram> items) async {
     final incomingIds = items.map((item) => item.id).toSet();
     final existing = await _collection.where().findAll();
+    final existingById = {for (final item in existing) item.id: item};
 
     for (final item in items) {
+      final localItem = existingById[item.id];
+      if (localItem != null && await _isSameProgram(localItem, item)) {
+        continue;
+      }
       await upsert(item);
     }
 
@@ -156,5 +161,25 @@ class PlannedExerciseProgramLocalDataSource {
     item.dates
       ..clear()
       ..addAll(dates);
+  }
+
+  Future<bool> _isSameProgram(
+    PlannedExerciseProgram existing,
+    PlannedExerciseProgram incoming,
+  ) async {
+    await _loadLinks(existing);
+    if (existing.programId != incoming.programId) return false;
+
+    final existingDates = existing.dates.map((d) => d.date).toList()..sort();
+    final incomingDates = incoming.dates.map((d) => d.date).toList()..sort();
+    return _listEquals(existingDates, incomingDates);
+  }
+
+  bool _listEquals<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

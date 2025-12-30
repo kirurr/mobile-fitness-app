@@ -4,6 +4,7 @@ import 'package:mobile_fitness_app/user_completed_exercise/dto.dart';
 import 'package:mobile_fitness_app/user_completed_exercise/model.dart';
 import 'dart:async';
 import 'package:mobile_fitness_app/user_completed_program/model.dart';
+import 'package:mobile_fitness_app/exercise_program/model.dart';
 
 class UserCompletedExerciseRepository {
   final UserCompletedExerciseLocalDataSource local;
@@ -156,26 +157,27 @@ class UserCompletedExerciseRepository {
       if (!await _isCompletedProgramSynced(item.completedProgramId)) {
         continue;
       }
+      final normalized = await _normalizeProgramExercise(item);
       final payload = UserCompletedExercisePayloadDTO(
-        id: item.id,
-        completedProgramId: item.completedProgramId,
-        programExerciseId: item.programExerciseId,
-        exerciseId: item.exerciseId,
-        sets: item.sets,
-        reps: item.reps,
-        duration: item.duration,
-        weight: item.weight,
-        restDuration: item.restDuration,
+        id: normalized.id,
+        completedProgramId: normalized.completedProgramId,
+        programExerciseId: normalized.programExerciseId,
+        exerciseId: normalized.exerciseId,
+        sets: normalized.sets,
+        reps: normalized.reps,
+        duration: normalized.duration,
+        weight: normalized.weight,
+        restDuration: normalized.restDuration,
       );
       try {
-        if (item.isLocalOnly) {
+        if (normalized.isLocalOnly) {
           await remote.create(payload);
         } else {
-          await remote.update(item.id, payload);
+          await remote.update(normalized.id, payload);
         }
-        item.synced = true;
-        item.isLocalOnly = false;
-        await local.upsert(item);
+        normalized.synced = true;
+        normalized.isLocalOnly = false;
+        await local.upsert(normalized);
       } catch (_) {
         continue;
       }
@@ -190,5 +192,60 @@ class UserCompletedExerciseRepository {
     final program = await local.db.userCompletedPrograms.get(completedProgramId);
     if (program == null) return true;
     return program.synced && !program.isLocalOnly;
+  }
+
+  Future<UserCompletedExercise> _normalizeProgramExercise(
+    UserCompletedExercise item,
+  ) async {
+    final programExerciseId = item.programExerciseId;
+    if (programExerciseId != null) {
+      final exists = await local.db.programExercises.get(programExerciseId);
+      if (exists != null) return item;
+    }
+
+    final resolvedProgramExerciseId =
+        await _resolveProgramExerciseId(item);
+    if (resolvedProgramExerciseId == null &&
+        programExerciseId == null) {
+      return item;
+    }
+
+    final resolvedExerciseId = item.exerciseId ?? item.exercise.value?.id;
+    final updated = UserCompletedExercise(
+      id: item.id,
+      completedProgramId: item.completedProgramId,
+      programExerciseId: resolvedProgramExerciseId,
+      exerciseId: resolvedExerciseId,
+      sets: item.sets,
+      reps: item.reps,
+      duration: item.duration,
+      weight: item.weight,
+      restDuration: item.restDuration,
+      synced: false,
+      pendingDelete: item.pendingDelete,
+      isLocalOnly: item.isLocalOnly,
+    );
+    updated.exercise.value = item.exercise.value;
+    await local.upsert(updated);
+    return updated;
+  }
+
+  Future<int?> _resolveProgramExerciseId(
+    UserCompletedExercise item,
+  ) async {
+    final completedProgram =
+        await local.db.userCompletedPrograms.get(item.completedProgramId);
+    if (completedProgram == null) return null;
+    final program =
+        await local.db.exercisePrograms.get(completedProgram.programId);
+    if (program == null) return null;
+    if (!program.synced || program.isLocalOnly) return null;
+    await program.programExercises.load();
+    final exerciseId = item.exerciseId ?? item.exercise.value?.id;
+    if (exerciseId == null) return null;
+    for (final pe in program.programExercises) {
+      if (pe.exerciseId == exerciseId) return pe.id;
+    }
+    return null;
   }
 }

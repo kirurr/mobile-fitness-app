@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:mobile_fitness_app/difficulty_level/repository.dart';
 import 'package:mobile_fitness_app/exercise/repository.dart';
 import 'package:mobile_fitness_app/exercise_category/repository.dart';
@@ -27,7 +28,7 @@ class SyncService {
   final UserCompletedProgramRepository userCompletedProgramRepository;
   final UserCompletedExerciseRepository userCompletedExerciseRepository;
 
-  bool _isSyncing = false;
+  Future<void>? _activeSync;
   final Duration delayBetweenEntities;
   final Duration retryDelay;
   final int maxRetries;
@@ -52,57 +53,72 @@ class SyncService {
   });
 
   Future<void> refreshAll() async {
-    if (_isSyncing) return;
-    _isSyncing = true;
-    try {
+    return _runExclusive(() async {
       await _syncWithRetry(difficultyLevelRepository.refreshLevels);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(fitnessGoalRepository.refreshGoals);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userDataRepository.refreshUserData);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(subscriptionRepository.refreshSubscriptions);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(exerciseCategoryRepository.refreshCategories);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(muscleGroupRepository.refreshGroups);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(() => exerciseRepository.refreshExercises());
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(exerciseProgramRepository.refreshProgramsIfSafe);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userSubscriptionRepository.refreshUserSubscriptions);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userPaymentRepository.refreshUserPayments);
-      await _delayBetween();
-      await _syncWithRetry(plannedExerciseProgramRepository.refreshPlannedPrograms);
-      await _delayBetween();
-      await _syncWithRetry(userCompletedProgramRepository.refreshCompletedPrograms);
-    } finally {
-      _isSyncing = false;
-    }
+      // await _delayBetween();
+      await _syncWithRetry(
+        plannedExerciseProgramRepository.refreshPlannedPrograms,
+      );
+      // await _delayBetween();
+      await _syncWithRetry(
+        userCompletedProgramRepository.refreshCompletedPrograms,
+      );
+    });
   }
 
   Future<void> syncPending() async {
-    if (_isSyncing) return;
-    _isSyncing = true;
-    try {
+    return _runExclusive(() async {
       await _syncWithRetry(userSubscriptionRepository.sync);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userPaymentRepository.sync);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(exerciseProgramRepository.sync);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(plannedExerciseProgramRepository.sync);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userCompletedProgramRepository.sync);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userCompletedExerciseRepository.sync);
-      await _delayBetween();
+      // await _delayBetween();
       await _syncWithRetry(userDataRepository.syncLocalUserData);
-    } finally {
-      _isSyncing = false;
-    }
+    });
+  }
+
+  Future<void> _runExclusive(Future<void> Function() action) {
+    final active = _activeSync;
+    if (active != null) return active;
+
+    final completer = Completer<void>();
+    _activeSync = completer.future;
+    () async {
+      try {
+        await action();
+        completer.complete();
+      } catch (e, stackTrace) {
+        completer.completeError(e, stackTrace);
+      } finally {
+        _activeSync = null;
+      }
+    }();
+    return completer.future;
   }
 
   Future<void> _syncWithRetry(Future<void> Function() action) async {

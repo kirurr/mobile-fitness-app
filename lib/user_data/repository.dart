@@ -22,6 +22,11 @@ class UserDataRepository {
     try {
       final remoteUserData = await remote.getCurrent();
       if (remoteUserData == null) {
+        final localData = await local.getCurrent();
+        if (localData != null &&
+            (!localData.synced || localData.isLocalOnly)) {
+          return;
+        }
         await local.clear();
         return;
       }

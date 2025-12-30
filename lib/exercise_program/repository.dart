@@ -202,15 +202,18 @@ class ExerciseProgramRepository {
       if (item.pendingDelete) continue;
       final payload = _buildPayloadFromProgram(item);
       try {
-        if (item.isLocalOnly) {
-          await remote.create(payload);
-        } else {
-          await remote.update(item.id, payload);
-        }
-        item.synced = true;
-        item.isLocalOnly = false;
-        item.pendingDelete = false;
-        await local.updateFromProgram(item, item.programExercises.toList());
+        final syncedProgram =
+            item.isLocalOnly
+                ? await remote.create(payload)
+                : await remote.update(item.id, payload);
+        await syncedProgram.programExercises.load();
+        syncedProgram.synced = true;
+        syncedProgram.isLocalOnly = false;
+        syncedProgram.pendingDelete = false;
+        await local.updateFromProgram(
+          syncedProgram,
+          syncedProgram.programExercises.toList(),
+        );
       } catch (_) {
         continue;
       }

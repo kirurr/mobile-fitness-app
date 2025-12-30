@@ -3,6 +3,7 @@ import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'package:mobile_fitness_app/exercise_program/model.dart';
 import 'package:mobile_fitness_app/screens/app_shell.dart';
 import 'package:mobile_fitness_app/screens/training_screen.dart';
+import 'package:mobile_fitness_app/user_completed_program/model.dart';
 
 class CompletedTrainingScreen extends StatelessWidget {
   final int completedProgramId;
@@ -24,182 +25,207 @@ class CompletedTrainingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final durationText = _formatDuration(startDate, endDate);
     final primary = Theme.of(context).colorScheme.primary;
+    final completedRepo =
+        DependencyScope.of(context).userCompletedProgramRepository;
+    final programRepo = DependencyScope.of(context).exerciseProgramRepository;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Workout'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 84,
-                height: 84,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: primary,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primary.withOpacity(0.45),
-                      blurRadius: 28,
-                      spreadRadius: 2,
+    return StreamBuilder<List<UserCompletedProgram>>(
+      stream: completedRepo.watchCompletedPrograms(),
+      initialData: const <UserCompletedProgram>[],
+      builder: (context, completedSnapshot) {
+        final completedItems =
+            completedSnapshot.data ?? const <UserCompletedProgram>[];
+        UserCompletedProgram? completed;
+        for (final item in completedItems) {
+          if (item.id == completedProgramId) {
+            completed = item;
+            break;
+          }
+        }
+        final resolvedProgramId = completed?.programId ?? programId;
+        final resolvedStart = completed?.startDate ?? startDate;
+        final resolvedEnd = completed?.endDate ?? endDate;
+        final resolvedExerciseCount =
+            completed?.completedExercises.isNotEmpty == true
+                ? completed!.completedExercises.length
+                : exerciseCount;
+        final durationText = _formatDuration(resolvedStart, resolvedEnd);
+
+        return StreamBuilder<List<ExerciseProgram>>(
+          stream: programRepo.watchAllPrograms(),
+          initialData: const <ExerciseProgram>[],
+          builder: (context, snapshot) {
+            final programs = snapshot.data ?? const <ExerciseProgram>[];
+            ExerciseProgram? found;
+            for (final program in programs) {
+              if (program.id == resolvedProgramId) {
+                found = program;
+                break;
+              }
+            }
+            final resolvedName = found?.name ?? programName;
+            final isAdded = found?.isUserAdded == true;
+
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Workout'),
+              ),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 84,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: primary,
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withOpacity(0.45),
+                              blurRadius: 28,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          size: 48,
+                          color: Colors.black,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  size: 48,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Center(
-              child: Text(
-                'Workout completed',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Center(
-              child: Text(
-                programName,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Center(
-              child: Text(
-                '${_formatShortDate(startDate)} - ${_formatShortDate(endDate)}',
-                style: const TextStyle(color: Colors.white54),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _statCard(
-                    icon: Icons.access_time,
-                    label: 'Time',
-                    value: durationText,
-                    iconColor: primary,
-                    valueColor: primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _statCard(
-                    icon: Icons.fitness_center,
-                    label: 'Exercises',
-                    value: '$exerciseCount',
-                    iconColor: primary,
-                    valueColor: primary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Card(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TrainingScreen(
-                      completedProgramId: completedProgramId,
-                      showCompletedScreen: false,
+                    const SizedBox(height: 20),
+                    const Center(
+                      child: Text(
+                        'Workout completed',
+                        style:
+                            TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: const [
-                      Expanded(
-                        child: Text(
-                          'Edit workout',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        resolvedName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white70,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        '${_formatShortDate(resolvedStart)} - ${_formatShortDate(resolvedEnd)}',
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _statCard(
+                            icon: Icons.access_time,
+                            label: 'Time',
+                            value: durationText,
+                            iconColor: primary,
+                            valueColor: primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _statCard(
+                            icon: Icons.fitness_center,
+                            label: 'Exercises',
+                            value: '$resolvedExerciseCount',
+                            iconColor: primary,
+                            valueColor: primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrainingScreen(
+                              completedProgramId: completedProgramId,
+                              showCompletedScreen: false,
+                            ),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: const [
+                              Expanded(
+                                child: Text(
+                                  'Edit workout',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Icon(Icons.chevron_right, color: Colors.white54),
+                            ],
                           ),
                         ),
                       ),
-                      Icon(Icons.chevron_right, color: Colors.white54),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: found == null
+                          ? null
+                          : () async {
+                            final repo = DependencyScope.of(context)
+                                .exerciseProgramRepository;
+                            final nextValue = !isAdded;
+                            final saved = await repo.markProgramUserAdded(
+                              resolvedProgramId,
+                              isUserAdded: nextValue,
+                            );
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  saved
+                                      ? (nextValue
+                                          ? 'Program saved.'
+                                          : 'Program removed.')
+                                      : 'Program not found.',
+                                ),
+                              ),
+                            );
+                          },
+                      child: Text(isAdded ? 'Remove program' : 'Save program'),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const AppShell()),
+                        (_) => false,
+                      ),
+                      icon: const Icon(Icons.home),
+                      label: const Text('Back to home'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        foregroundColor: Colors.black,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            StreamBuilder<List<ExerciseProgram>>(
-              stream: DependencyScope.of(context)
-                  .exerciseProgramRepository
-                  .watchAllPrograms(),
-              initialData: const <ExerciseProgram>[],
-              builder: (context, snapshot) {
-                final programs =
-                    snapshot.data ?? const <ExerciseProgram>[];
-                ExerciseProgram? found;
-                for (final program in programs) {
-                  if (program.id == programId) {
-                    found = program;
-                    break;
-                  }
-                }
-                final isAdded = found?.isUserAdded == true;
-
-                return OutlinedButton(
-                  onPressed: found == null
-                      ? null
-                      : () async {
-                        final repo = DependencyScope.of(context)
-                            .exerciseProgramRepository;
-                        final nextValue = !isAdded;
-                        final saved = await repo.markProgramUserAdded(
-                          programId,
-                          isUserAdded: nextValue,
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              saved
-                                  ? (nextValue
-                                      ? 'Program saved.'
-                                      : 'Program removed.')
-                                  : 'Program not found.',
-                            ),
-                          ),
-                        );
-                      },
-                  child: Text(isAdded ? 'Remove program' : 'Save program'),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AppShell()),
-                (_) => false,
-              ),
-              icon: const Icon(Icons.home),
-              label: const Text('Back to home'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.black,
-              ),
-            ),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 

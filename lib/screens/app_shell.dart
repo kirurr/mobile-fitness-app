@@ -69,21 +69,20 @@ class AppShellState extends State<AppShell> with RouteAware {
     final deps = DependencyScope.of(context);
     try {
       final hasCoreData = await _preloadLocalData(deps);
-      if (_mainSeed?.userData == null) {
-        try {
-          await deps.userDataRepository.refreshUserData();
-        } catch (_) {
-          // Allow offline/local-first behavior even if refresh fails.
-        }
+      if (!mounted) return;
+      if (hasCoreData) {
+        setState(() => _loading = false);
       }
+      await deps.syncService.syncPending();
       if (!hasCoreData) {
         await deps.syncService.refreshAll();
-        await _preloadLocalData(deps);
+      } else {
+        unawaited(deps.syncService.refreshAll());
       }
+      await _preloadLocalData(deps);
       await _primeStreams(deps);
       if (!mounted) return;
       setState(() => _loading = false);
-      unawaited(_syncOnTabEntry(refresh: hasCoreData));
     } catch (e) {
       if (!mounted) return;
       setState(() {

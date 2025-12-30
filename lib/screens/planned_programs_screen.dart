@@ -74,18 +74,7 @@ class _PlannedProgramsScreenState extends State<PlannedProgramsScreen> {
               }
 
               final items = snapshot.data ?? const <PlannedExerciseProgram>[];
-              final entries = items
-                  .map((item) {
-                    final date = _earliestDate(item);
-                    if (date == null) return null;
-                    return ScheduleEntry(
-                      planned: item,
-                      date: date,
-                      program: programById[item.programId],
-                    );
-                  })
-                  .whereType<ScheduleEntry>()
-                  .toList();
+              final entries = _expandPlannedDates(items, programById);
 
               if (entries.isEmpty) {
                 return const Center(child: Text('No planned programs yet.'));
@@ -171,20 +160,31 @@ class _PlannedProgramsScreenState extends State<PlannedProgramsScreen> {
     );
   }
 
-  DateTime? _earliestDate(PlannedExerciseProgram item) {
+  List<ScheduleEntry> _expandPlannedDates(
+    List<PlannedExerciseProgram> items,
+    Map<int, ExerciseProgram> programById,
+  ) {
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
-    final dates = item.dates.toList();
-    DateTime? earliest;
-    for (final planned in dates) {
-      final parsed = _parseDate(planned.date);
-      if (parsed == null) continue;
-      if (parsed.isBefore(startOfToday)) continue;
-      if (earliest == null || parsed.isBefore(earliest)) {
-        earliest = parsed;
+    final entries = <ScheduleEntry>[];
+
+    for (final item in items) {
+      final dates = item.dates.toList();
+      for (final planned in dates) {
+        final parsed = _parseDate(planned.date);
+        if (parsed == null) continue;
+        if (parsed.isBefore(startOfToday)) continue;
+        entries.add(
+          ScheduleEntry(
+            planned: item,
+            date: parsed,
+            program: programById[item.programId],
+          ),
+        );
       }
     }
-    return earliest;
+
+    return entries;
   }
 
   Map<String, List<ScheduleEntry>> _groupByMonth(

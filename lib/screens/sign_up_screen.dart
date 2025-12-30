@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_fitness_app/auth/model.dart';
 import 'package:mobile_fitness_app/auth/service.dart';
+import 'package:mobile_fitness_app/app/dependency_scope.dart';
 import 'app_shell.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -49,6 +50,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       });
       return;
     }
+
+    DependencyScope.of(context)
+        .syncService
+        .refreshAll()
+        .catchError((_) {});
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const AppShell()),

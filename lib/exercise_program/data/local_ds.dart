@@ -63,8 +63,13 @@ class ExerciseProgramLocalDataSource {
   Future<void> replaceAll(List<ExerciseProgram> items) async {
     final incomingIds = items.map((item) => item.id).toSet();
     final existing = await _collection.where().findAll();
+    final existingById = {for (final item in existing) item.id: item};
 
     for (final item in items) {
+      final localItem = existingById[item.id];
+      if (localItem != null && await _isSameProgram(localItem, item)) {
+        continue;
+      }
       await _saveProgram(
         item,
         clearExistingExercises: true,
@@ -315,5 +320,82 @@ class ExerciseProgramLocalDataSource {
     for (final pe in item.programExercises) {
       await pe.exercise.load();
     }
+  }
+
+  Future<bool> _isSameProgram(
+    ExerciseProgram existing,
+    ExerciseProgram incoming,
+  ) async {
+    await _loadLinks(existing);
+
+    if (existing.userId != incoming.userId ||
+        existing.name != incoming.name ||
+        existing.description != incoming.description ||
+        existing.isUserAdded != incoming.isUserAdded) {
+      return false;
+    }
+
+    final existingDifficultyId =
+        existing.difficultyLevel.isNotEmpty
+            ? existing.difficultyLevel.first.id
+            : null;
+    final incomingDifficultyId =
+        incoming.difficultyLevel.isNotEmpty
+            ? incoming.difficultyLevel.first.id
+            : null;
+    if (existingDifficultyId != incomingDifficultyId) {
+      return false;
+    }
+
+    final existingSubscriptionId =
+        existing.subscription.isNotEmpty
+            ? existing.subscription.first.id
+            : null;
+    final incomingSubscriptionId =
+        incoming.subscription.isNotEmpty
+            ? incoming.subscription.first.id
+            : null;
+    if (existingSubscriptionId != incomingSubscriptionId) {
+      return false;
+    }
+
+    final existingGoals = existing.fitnessGoals
+        .map((goal) => goal.id)
+        .toList()
+      ..sort();
+    final incomingGoals = incoming.fitnessGoals
+        .map((goal) => goal.id)
+        .toList()
+      ..sort();
+    if (!_listEquals(existingGoals, incomingGoals)) {
+      return false;
+    }
+
+    final existingExercises = existing.programExercises
+        .map(_programExerciseKey)
+        .toList()
+      ..sort();
+    final incomingExercises = incoming.programExercises
+        .map(_programExerciseKey)
+        .toList()
+      ..sort();
+    if (!_listEquals(existingExercises, incomingExercises)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  String _programExerciseKey(ProgramExercise item) {
+    return '${item.id}|${item.exerciseId}|${item.order}|${item.sets}|'
+        '${item.reps}|${item.duration}|${item.restDuration}';
+  }
+
+  bool _listEquals<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

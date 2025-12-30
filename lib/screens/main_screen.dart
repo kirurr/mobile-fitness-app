@@ -581,7 +581,7 @@ class _MainScreenState extends State<MainScreen>
                     Icon(Icons.access_time, color: colorPrimary),
                     const SizedBox(width: 8),
                     Text(
-                      progress.hoursText,
+                      progress.durationText,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -976,17 +976,11 @@ class _MainScreenState extends State<MainScreen>
     final result = <_PlannedWeekItem>[];
     for (final item in items) {
       final dates = item.dates.toList();
-      DateTime? earliest;
       for (final planned in dates) {
         final parsed = _parseDate(planned.date);
         if (parsed == null) continue;
         if (parsed.isBefore(start)) continue;
-        if (earliest == null || parsed.isBefore(earliest)) {
-          earliest = parsed;
-        }
-      }
-      if (earliest != null) {
-        result.add(_PlannedWeekItem(item, earliest));
+        result.add(_PlannedWeekItem(item, parsed));
       }
     }
 
@@ -1101,13 +1095,18 @@ class _MainScreenState extends State<MainScreen>
       workouts += 1;
     }
 
-    final hoursValue = totalMinutes / 60;
-    final hoursText =
-        hoursValue == hoursValue.roundToDouble()
-            ? '${hoursValue.toStringAsFixed(0)} h'
-            : '${hoursValue.toStringAsFixed(1)} h';
+    final durationText = _formatWeeklyDuration(totalMinutes);
 
-    return _WeeklyProgress(hoursText: hoursText, workouts: workouts);
+    return _WeeklyProgress(durationText: durationText, workouts: workouts);
+  }
+
+  String _formatWeeklyDuration(int totalMinutes) {
+    if (totalMinutes <= 0) return '0 m';
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours > 0 && minutes > 0) return '$hours h $minutes m';
+    if (hours > 0) return '$hours h';
+    return '$minutes m';
   }
 
   DateTime? _parseDate(String? value) {
@@ -1144,10 +1143,10 @@ class _PlannedWeekItem {
 }
 
 class _WeeklyProgress {
-  final String hoursText;
+  final String durationText;
   final int workouts;
 
-  _WeeklyProgress({required this.hoursText, required this.workouts});
+  _WeeklyProgress({required this.durationText, required this.workouts});
 }
 
 class _ScheduleData {
