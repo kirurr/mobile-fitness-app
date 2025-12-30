@@ -3,6 +3,10 @@
 ## Requirements
 - Flutter SDK installed and on PATH
 - Platform toolchain (Android Studio / Xcode) set up
+- Official install guide: https://docs.flutter.dev/get-started/install
+
+## Get the project
+- Clone the repo (download the folder from GitHub locally)
 
 ## Env
 - Copy `.env.example` to `.env`
